@@ -13,4 +13,5 @@ mcp = FastMCP("molml-mcp")
 
 # Add tools
 mcp.add_tool(canonicalize_smiles)
+mcp.add_tool(load_csv)
 
