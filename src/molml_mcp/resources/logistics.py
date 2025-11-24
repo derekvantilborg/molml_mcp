@@ -14,7 +14,7 @@ from molml_mcp.resources import DATA_ROOT
 # load_resource(resource_id)
 
 
-def generate_id(type_tag: str) -> str:
+def _generate_id(type_tag: str) -> str:
     """Generate a unique resource ID with timestamp, type tag, and random ID component."""
     ts = datetime.now().strftime("%Y%m%dT%H%M%S")
     rand = secrets.token_hex(4).upper()  # 8 hex chars
@@ -24,11 +24,11 @@ def generate_id(type_tag: str) -> str:
     return f"{ts}_{type_tag}_{rand}{ext}"
 
 
-def store_resource(obj: Any, type_tag: str) -> str:
+def _store_resource(obj: Any, type_tag: str) -> str:
     if type_tag not in TYPE_REGISTRY:
         raise ValueError(f"Unsupported resource type: {type_tag}")
     
-    rid = generate_id(type_tag)
+    rid = _generate_id(type_tag)
 
     path = DATA_ROOT / f"{rid}"
     save_fn: Callable[[Any, Path], None] = TYPE_REGISTRY[type_tag]['save']
@@ -36,7 +36,7 @@ def store_resource(obj: Any, type_tag: str) -> str:
 
     return rid
 
-def load_resource(resource_id: str) -> Any:
+def _load_resource(resource_id: str) -> Any:
     # infer type from the ID. They are always in the format: TIMESTAMP_TYPE_RANDOM.ext
     try:
         type_tag = resource_id.split("_", 2)[1]
