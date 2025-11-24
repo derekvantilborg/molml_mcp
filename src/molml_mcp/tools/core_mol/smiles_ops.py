@@ -1,14 +1,56 @@
 from rdkit.Chem import MolFromSmiles, MolToSmiles
 
 def canonicalize_smiles(smiles: list[str]) -> list[str]: 
-    """ Convert a SMILES string to its canonical form. """
+    """ Convert a SMILES string to its canonical form. Failed conversions are treated as None."""
 
     canonic = []
     for smi in smiles:
         mol = MolFromSmiles(smi)
-        if mol is None:
-            raise ValueError(f"Invalid SMILES string {smi}")
+
+        try:
+            smi_canon = MolToSmiles(mol, canonical=True)
+        except Exception as e:
+            smi_canon = None
         
-        canonic.append(MolToSmiles(mol, canonical=True))
+        canonic.append(smi_canon)
         
     return canonic
+
+
+def canonicalize_smiles_dataset(resource_id:str, column_name:str) -> dict:
+    """
+    Canonicalize all SMILES strings in a specified column of a tabular dataset. 
+    A new column of canonicalized SMILES is added to the dataframe.
+
+    Parameters
+    ----------
+    resource_id : str
+        Identifier for the tabular dataset resource.
+    column_name : str
+        Name of the column containing SMILES strings to be canonicalized.
+
+    Returns
+    -------
+    dict
+        Updated dataset information with canonicalized SMILES in the specified column.
+    """
+    from molml_mcp.resources.logistics import _load_resource, _store_resource
+
+    df = _load_resource(resource_id)
+    
+    if column_name not in df['columns']:
+        raise ValueError(f"Column {column_name} not found in dataset.")
+
+    smiles_list = df[column_name].tolist()
+    canonical_smiles = canonicalize_smiles(smiles_list)
+
+    df['canonic_smiles'] = canonical_smiles
+
+    new_resource_id = _store_resource(df, 'csv')
+
+    return {
+        "resource_id": new_resource_id,
+        "n_rows": df['n_rows'],
+        "columns": df['columns'],
+        "preview": df['data'][:5],
+    }
