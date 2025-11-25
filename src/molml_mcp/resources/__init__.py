@@ -19,3 +19,4 @@ def get_data_root() -> Path:
     return root
 
 DATA_ROOT = get_data_root()
+LOG_PATH = DATA_ROOT / "history.log"
