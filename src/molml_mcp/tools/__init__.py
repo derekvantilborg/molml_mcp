@@ -16,4 +16,4 @@
 #     return tools
 
 
-from molml_mcp.tools.core_mol.smiles_ops import canonicalize_smiles
+from molml_mcp.tools.core_mol.smiles_ops import canonicalize_smiles, canonicalize_smiles_dataset
