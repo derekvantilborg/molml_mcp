@@ -7,7 +7,7 @@ from typing import Any, Callable
 import inspect
 from functools import wraps
 
-from molml_mcp.resources.supported_resource_types import TYPE_REGISTRY
+from molml_mcp.infrastructure.supported_resource_types import TYPE_REGISTRY
 from molml_mcp.config import DATA_ROOT, LOG_PATH
 
 
