@@ -45,7 +45,7 @@ def _store_resource(obj: Any, type_tag: str) -> str:
 def _load_resource(resource_id: str) -> Any:
     # infer type from the ID. They are always in the format: TIMESTAMP_TYPE_RANDOM.ext
     try:
-        type_tag = resource_id.split("_", 2)[1]
+        type_tag = resource_id.split("_")[-2]
     except ValueError:
         raise ValueError(f"Invalid resource_id format: {resource_id}")
 
@@ -126,7 +126,7 @@ def loggable(func):
 
         # Build log entry in your original style
         entry = (
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S:\n")
+            datetime.now().strftime("\n%Y-%m-%d %H:%M:%S:\n")
             + f"\tFunction: {func.__name__}()\n"
             + f"\tDescription: {docstring_first_line}\n"
             + f"\tInputs: {inputs_str}\n"
