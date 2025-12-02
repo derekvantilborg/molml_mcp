@@ -14,6 +14,7 @@ dependencies = [
     "numpy",
     "scikit-learn",
     "pandas",
+    "cairosvg>=2.8.2",
 ]
 
 [tool.setuptools]
