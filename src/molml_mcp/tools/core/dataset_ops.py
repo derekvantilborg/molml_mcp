@@ -87,14 +87,292 @@ def store_csv_as_dataset_from_text(csv_content: str) -> dict:
     }
 
 
-@loggable
+def get_dataset_head(resource_id: str, n_rows: int = 10) -> dict:
+    """
+    Get the first n rows of a dataset for quick inspection.
+    
+    This is useful for quickly viewing the top of a dataset without
+    loading the entire content. Perfect for initial data exploration.
+
+    Parameters
+    ----------
+    resource_id : str
+        Identifier for the dataset resource.
+    n_rows : int, default=10
+        Number of rows to return from the top of the dataset.
+
+    Returns
+    -------
+    dict
+        {
+            "resource_id": str,       # original resource identifier
+            "n_rows_returned": int,   # number of rows returned
+            "n_rows_total": int,      # total rows in dataset
+            "columns": list[str],     # column names
+            "rows": list[dict],       # first n rows as records
+        }
+
+    Examples
+    --------
+    # Get first 10 rows (default)
+    get_dataset_head(rid)
+    
+    # Get first 20 rows
+    get_dataset_head(rid, n_rows=20)
+    """
+    import pandas as pd
+    
+    df = _load_resource(resource_id)
+    n_total = len(df)
+    
+    # Get the head
+    head_df = df.head(n_rows)
+    
+    return {
+        "resource_id": resource_id,
+        "n_rows_returned": len(head_df),
+        "n_rows_total": n_total,
+        "columns": list(df.columns),
+        "rows": head_df.to_dict(orient="records"),
+    }
+
+
+def get_dataset_full(resource_id: str, max_rows: int = 10000) -> dict:
+    """
+    Get the entire dataset content.
+    
+    WARNING: This returns ALL rows in the dataset, which can be very large.
+    Use with caution on large datasets. A safety limit of max_rows is enforced.
+
+    Parameters
+    ----------
+    resource_id : str
+        Identifier for the dataset resource.
+    max_rows : int, default=10000
+        Maximum number of rows to return (safety limit to prevent overwhelming output).
+
+    Returns
+    -------
+    dict
+        {
+            "resource_id": str,       # original resource identifier
+            "n_rows_returned": int,   # number of rows returned
+            "n_rows_total": int,      # total rows in dataset
+            "columns": list[str],     # column names
+            "rows": list[dict],       # all rows (or first max_rows) as records
+            "truncated": bool,        # True if dataset was truncated
+        }
+
+    Examples
+    --------
+    # Get entire dataset (up to 10000 rows)
+    get_dataset_full(rid)
+    
+    # Get entire dataset with higher limit
+    get_dataset_full(rid, max_rows=50000)
+    
+    Notes
+    -----
+    For large datasets, consider using get_dataset_head() or inspect_dataset_rows()
+    with filter_condition instead of loading the entire dataset.
+    """
+    import pandas as pd
+    
+    df = _load_resource(resource_id)
+    n_total = len(df)
+    
+    # Check if we need to truncate
+    truncated = n_total > max_rows
+    result_df = df.head(max_rows) if truncated else df
+    
+    return {
+        "resource_id": resource_id,
+        "n_rows_returned": len(result_df),
+        "n_rows_total": n_total,
+        "columns": list(df.columns),
+        "rows": result_df.to_dict(orient="records"),
+        "truncated": truncated,
+    }
+
+
+def get_dataset_summary(resource_id: str, columns: list[str] | None = None) -> dict:
+    """
+    Get a comprehensive summary of a dataset, similar to R's summary() function.
+    
+    Provides statistics for each column based on its data type:
+    - Numeric columns: min, max, mean, median, std, count, n_missing
+    - Non-numeric columns: data type, unique count, most common value, n_missing
+
+    Parameters
+    ----------
+    resource_id : str
+        Identifier for the dataset resource.
+    columns : list[str] | None, optional
+        List of specific column names to summarize. If None, all columns are summarized.
+        This is useful for large dataframes with many columns where you only want to
+        examine a subset of columns to reduce computation time and output size.
+
+    Returns
+    -------
+    dict
+        {
+            "resource_id": str,           # original resource identifier
+            "n_rows": int,                # total rows in dataset
+            "n_columns": int,             # total columns in dataset
+            "n_columns_summarized": int,  # number of columns included in summary
+            "column_summaries": dict,     # summary for each column
+        }
+        
+        Each column_summary contains:
+        - For numeric columns:
+            {
+                "dtype": str,
+                "count": int,      # non-null count
+                "n_missing": int,  # null count
+                "min": float,
+                "max": float,
+                "mean": float,
+                "median": float,
+                "std": float,
+            }
+        - For non-numeric columns:
+            {
+                "dtype": str,
+                "count": int,           # non-null count
+                "n_missing": int,       # null count
+                "n_unique": int,        # number of unique values
+                "top_value": any,       # most common value
+                "top_freq": int,        # frequency of most common value
+            }
+
+    Examples
+    --------
+    # Get summary statistics for all columns
+    get_dataset_summary(rid)
+    
+    # Get summary for specific columns only (useful for large dataframes)
+    get_dataset_summary(rid, columns=['TPSA', 'MolWt', 'label'])
+    
+    Notes
+    -----
+    This function is useful for initial data exploration and understanding
+    the distribution and types of data in each column. For large dataframes
+    with many columns, use the `columns` parameter to summarize only the
+    columns of interest, which improves performance and reduces output size.
+    """
+    import pandas as pd
+    import numpy as np
+    
+    df = _load_resource(resource_id)
+    n_rows = len(df)
+    n_columns = len(df.columns)
+    
+    # Determine which columns to summarize
+    if columns is None:
+        cols_to_summarize = df.columns
+    else:
+        # Validate that all requested columns exist
+        missing_cols = [col for col in columns if col not in df.columns]
+        if missing_cols:
+            raise ValueError(f"Column(s) not found in dataset: {missing_cols}")
+        cols_to_summarize = columns
+    
+    column_summaries = {}
+    
+    for col in cols_to_summarize:
+        col_data = df[col]
+        n_missing = col_data.isna().sum()
+        count = col_data.notna().sum()
+        dtype_str = str(col_data.dtype)
+        
+        # Check if numeric (including int, float, but excluding bool)
+        if pd.api.types.is_numeric_dtype(col_data) and not pd.api.types.is_bool_dtype(col_data):
+            # Numeric column statistics
+            if count > 0:
+                summary = {
+                    "dtype": dtype_str,
+                    "count": int(count),
+                    "n_missing": int(n_missing),
+                    "min": float(col_data.min()),
+                    "max": float(col_data.max()),
+                    "mean": float(col_data.mean()),
+                    "median": float(col_data.median()),
+                    "std": float(col_data.std()),
+                }
+            else:
+                # All values are missing
+                summary = {
+                    "dtype": dtype_str,
+                    "count": 0,
+                    "n_missing": int(n_missing),
+                    "min": None,
+                    "max": None,
+                    "mean": None,
+                    "median": None,
+                    "std": None,
+                }
+        else:
+            # Non-numeric column statistics
+            if count > 0:
+                value_counts = col_data.value_counts()
+                top_value = value_counts.index[0]
+                top_freq = int(value_counts.iloc[0])
+                n_unique = col_data.nunique()
+                
+                # Convert top_value to a JSON-serializable type
+                if pd.isna(top_value):
+                    top_value = None
+                elif isinstance(top_value, (np.integer, np.floating)):
+                    top_value = float(top_value)
+                elif isinstance(top_value, np.bool_):
+                    top_value = bool(top_value)
+                else:
+                    top_value = str(top_value)
+                
+                summary = {
+                    "dtype": dtype_str,
+                    "count": int(count),
+                    "n_missing": int(n_missing),
+                    "n_unique": int(n_unique),
+                    "top_value": top_value,
+                    "top_freq": top_freq,
+                }
+            else:
+                # All values are missing
+                summary = {
+                    "dtype": dtype_str,
+                    "count": 0,
+                    "n_missing": int(n_missing),
+                    "n_unique": 0,
+                    "top_value": None,
+                    "top_freq": 0,
+                }
+        
+        column_summaries[col] = summary
+    
+    return {
+        "resource_id": resource_id,
+        "n_rows": n_rows,
+        "n_columns": n_columns,
+        "n_columns_summarized": len(cols_to_summarize),
+        "column_summaries": column_summaries,
+    }
+
+
 def inspect_dataset_rows(resource_id: str, row_indices: list[int] | None = None, 
                          filter_condition: str | None = None, max_rows: int = 100) -> dict:
     """
-    Inspect specific rows from a dataset by index or filter condition.
+    Inspect or filter rows from a dataset by index or complex conditions.
     
-    Useful for examining rows that failed validation, have null values, or meet
-    specific criteria. Returns full row data for detailed inspection.
+    This is the recommended tool for filtering datasets with numeric comparisons,
+    complex conditions, or when you need to examine specific rows. It supports
+    full pandas query syntax including >, <, >=, <=, ==, !=, and logical operators.
+    
+    Use this tool instead of keep_from_dataset/drop_from_dataset when you need:
+    - Numeric comparisons (e.g., "TPSA > 20", "MolWt < 500")
+    - Range filters (e.g., "200 <= MolWt <= 600")
+    - Multiple conditions (e.g., "TPSA > 20 and MolWt < 400")
+    - Null value checks (e.g., "column_name.isnull()")
 
     Parameters
     ----------
@@ -103,8 +381,12 @@ def inspect_dataset_rows(resource_id: str, row_indices: list[int] | None = None,
     row_indices : list[int] | None
         List of row indices (0-based) to retrieve. If provided, filter_condition is ignored.
     filter_condition : str | None
-        Pandas query string to filter rows (e.g., "smiles.isnull()" or "label < 0").
-        Only used if row_indices is None.
+        Pandas query string to filter rows. Supports full pandas query syntax:
+        - Numeric: "TPSA > 20", "MolWt <= 500", "label == 1.0"
+        - Range: "200 <= MolWt <= 600"
+        - Null checks: "column.isnull()" or "column.notnull()"
+        - Logic: "TPSA > 20 and MolWt < 400"
+        - String: 'description == "active"'
     max_rows : int, default=100
         Maximum number of rows to return (safety limit to prevent large outputs).
 
@@ -113,7 +395,7 @@ def inspect_dataset_rows(resource_id: str, row_indices: list[int] | None = None,
     dict
         {
             "resource_id": str,          # original resource identifier
-            "n_rows_returned": int,      # number of rows in result
+            "n_rows_returned": int,      # number of rows matching condition
             "n_rows_total": int,         # total rows in dataset
             "columns": list[str],        # column names
             "rows": list[dict],          # retrieved rows as records
@@ -122,14 +404,26 @@ def inspect_dataset_rows(resource_id: str, row_indices: list[int] | None = None,
 
     Examples
     --------
+    # Filter by numeric comparison
+    inspect_dataset_rows(rid, filter_condition="TPSA > 20")
+    
+    # Filter by range
+    inspect_dataset_rows(rid, filter_condition="200 <= MolWt <= 500")
+    
+    # Multiple conditions
+    inspect_dataset_rows(rid, filter_condition="TPSA > 20 and MolLogP < 5")
+    
+    # Find null values
+    inspect_dataset_rows(rid, filter_condition="smiles_after_canonicalization.isnull()")
+    
     # Inspect specific rows by index
     inspect_dataset_rows(rid, row_indices=[5, 10, 15])
     
-    # Find rows with null SMILES
-    inspect_dataset_rows(rid, filter_condition="canonic_smiles.isnull()")
-    
-    # Find rows where conversion failed (assuming a 'valid' column)
-    inspect_dataset_rows(rid, filter_condition="valid == False")
+    Notes
+    -----
+    This tool returns matching rows for inspection but does NOT create a new
+    filtered dataset. To create a new filtered dataset, you would need to use
+    a different workflow or tool.
     """
     import pandas as pd
     
@@ -173,21 +467,48 @@ def inspect_dataset_rows(resource_id: str, row_indices: list[int] | None = None,
 @loggable
 def drop_from_dataset(resource_id: str, column_name: str, condition: str) -> dict:
     """
-    Drop rows from a dataset based on a condition applied to a specified column.
+    Drop rows from a dataset based on SIMPLE conditions (exact match or null check).
+    
+    This tool only supports:
+    1. Dropping rows with null values: condition='is None'
+    2. Dropping rows with exact value match: condition='== "value"'
+    
+    For numeric comparisons (>, <, >=, <=) or complex conditions, use
+    inspect_dataset_rows() with filter_condition to identify rows, then
+    manually filter the dataset.
 
     Parameters
     ----------
     resource_id : str
         Identifier for the tabular dataset resource.
     column_name : str
-        Name of the column to apply the condition on.
+        Name of the column to check.
     condition : str
-        Condition to evaluate for dropping rows (e.g., 'is None', '== "Failed: Invalid SMILES string"').
+        Simple condition - either 'is None' or '== "exact_value"'
+        Examples: 'is None', '== "Failed"', '== "invalid"'
 
     Returns
     -------
     dict
-        Updated dataset information after dropping specified rows.
+        {
+            "resource_id": str,        # new dataset without dropped rows
+            "n_rows": int,             # rows remaining after drop
+            "columns": list[str],      # column names
+            "preview": list[dict],     # first 5 rows
+        }
+    
+    Examples
+    --------
+    # Drop rows with null values in a column
+    drop_from_dataset(rid, "smiles_after_canonicalization", "is None")
+    
+    # Drop rows with specific failed status
+    drop_from_dataset(rid, "comments", '== "Failed: Invalid SMILES string"')
+    
+    Notes
+    -----
+    For advanced filtering like "TPSA > 20" or "MolWt < 500", this tool
+    is NOT suitable. Use inspect_dataset_rows() to preview filtered data.
     """
     import pandas as pd
     
@@ -213,21 +534,48 @@ def drop_from_dataset(resource_id: str, column_name: str, condition: str) -> dic
 @loggable
 def keep_from_dataset(resource_id: str, column_name: str, condition: str) -> dict:
     """
-    Keep only rows from a dataset based on a condition applied to a specified column.
+    Keep only rows from a dataset based on SIMPLE conditions (exact match or null check).
+    
+    This tool only supports:
+    1. Keeping rows with null values: condition='is None'
+    2. Keeping rows with exact value match: condition='== "value"'
+    
+    For numeric comparisons (>, <, >=, <=) or complex conditions, use
+    inspect_dataset_rows() with filter_condition to identify rows, then
+    manually filter the dataset.
 
     Parameters
     ----------
     resource_id : str
         Identifier for the tabular dataset resource.
     column_name : str
-        Name of the column to apply the condition on.
+        Name of the column to check.
     condition : str
-        Condition to evaluate for keeping rows (e.g., 'is None', '== "Passed"').
+        Simple condition - either 'is None' or '== "exact_value"'
+        Examples: 'is None', '== "Passed"', '== "active"'
 
     Returns
     -------
     dict
-        Updated dataset information after keeping specified rows.
+        {
+            "resource_id": str,        # new dataset with only kept rows
+            "n_rows": int,             # rows remaining after filter
+            "columns": list[str],      # column names
+            "preview": list[dict],     # first 5 rows
+        }
+    
+    Examples
+    --------
+    # Keep only rows with successful canonicalization
+    keep_from_dataset(rid, "comments_after_canonicalization", '== "Passed"')
+    
+    # Keep only rows with null labels (for review)
+    keep_from_dataset(rid, "label", "is None")
+    
+    Notes
+    -----
+    For advanced filtering like "TPSA > 20" or "MolWt < 500", this tool
+    is NOT suitable. Use inspect_dataset_rows() to preview filtered data.
     """
     import pandas as pd
     
@@ -364,6 +712,9 @@ def get_all_dataset_tools():
     return [
         store_csv_as_dataset,
         store_csv_as_dataset_from_text,
+        get_dataset_head,
+        get_dataset_full,
+        get_dataset_summary,
         inspect_dataset_rows,
         drop_from_dataset,
         keep_from_dataset,
