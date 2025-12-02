@@ -47,6 +47,19 @@ def calculate_descriptors(resource_id: str, smiles_column: str, descriptor_names
     in the given SMILES column and adds each descriptor as a new column to the dataset.
     Invalid SMILES or calculation failures result in None values for that descriptor.
     
+    Most commonly used descriptors:
+    - TPSA: Topological Polar Surface Area (Å²)
+    - MolWt: Molecular weight (g/mol)
+    - MolLogP: Octanol-water partition coefficient (log P)
+    - NumHDonors: Number of hydrogen bond donors
+    - NumHAcceptors: Number of hydrogen bond acceptors
+    - HeavyAtomCount: Number of heavy (non-hydrogen) atoms
+    - NumRotatableBonds: Number of rotatable bonds
+    - NumAromaticRings: Number of aromatic rings
+    - RingCount: Total number of rings
+    - FractionCSP3: Fraction of sp³ hybridized carbons
+    - qed: Quantitative Estimate of Drug-likeness
+    
     Parameters
     ----------
     resource_id : str
@@ -54,8 +67,8 @@ def calculate_descriptors(resource_id: str, smiles_column: str, descriptor_names
     smiles_column : str
         Name of the column containing SMILES strings.
     descriptor_names : list[str]
-        List of RDKit descriptor names to calculate (e.g., ["MolWt", "TPSA", "LogP"]).
-        Use list_rdkit_descriptors() to see all available descriptor names.
+        List of RDKit descriptor names to calculate.
+        Use list_rdkit_descriptors() to see all 210+ available descriptor names.
     
     Returns
     -------
@@ -76,11 +89,11 @@ def calculate_descriptors(resource_id: str, smiles_column: str, descriptor_names
     
     Examples
     --------
-    # Calculate molecular weight and TPSA
-    calculate_descriptors(rid, "smiles", ["MolWt", "TPSA"])
+    # Calculate common drug-like properties
+    calculate_descriptors(rid, "smiles", ["MolWt", "TPSA", "MolLogP", "NumHDonors", "NumHAcceptors"])
     
-    # Calculate multiple descriptors
-    calculate_descriptors(rid, "canonical_smiles", ["MolWt", "TPSA", "MolLogP", "NumHDonors"])
+    # Calculate additional structural properties
+    calculate_descriptors(rid, "smiles", ["HeavyAtomCount", "NumRotatableBonds", "RingCount", "qed"])
     """
     import pandas as pd
     
@@ -133,7 +146,7 @@ def calculate_descriptors(resource_id: str, smiles_column: str, descriptor_names
         "columns": list(df.columns),
         "descriptors_added": descriptor_names,
         "n_failed": n_failed,
-        "comment": "If molecules fails a descriptor calculation, a None value is assigned for that descriptor.",
+        "note": "If molecules fails a descriptor calculation, a None value is assigned for that descriptor.",
         "preview": df.head(5).to_dict(orient="records"),
     }
 
