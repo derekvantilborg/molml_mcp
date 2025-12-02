@@ -8,6 +8,7 @@ set -euo pipefail
 PROJECT_DIR="/Users/derekvantilborg/Dropbox/PD/molml_mcp"
 UV_BIN="/Users/derekvantilborg/.local/bin/uv"
 CLAUDE_CONFIG="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
+CAIRO_PATH="/opt/homebrew/opt/cairo/lib"
 
 ##############################################
 # 1. (Optional) sync / ensure deps
@@ -45,7 +46,7 @@ fi
 
 # Safely update only the molml-mcp entry and remove any legacy "server" entry
 tmpfile="$(mktemp)"
-jq --arg uv "$UV_BIN" --arg dir "$PROJECT_DIR" '
+jq --arg uv "$UV_BIN" --arg dir "$PROJECT_DIR" --arg cairo "$CAIRO_PATH" '
   .mcpServers = (.mcpServers // {}) |
   del(.mcpServers["server"]) |
   .mcpServers["molml-mcp"] = {
@@ -60,6 +61,9 @@ jq --arg uv "$UV_BIN" --arg dir "$PROJECT_DIR" '
       "run",
       "./src/molml_mcp/server.py"
     ],
+    "env": {
+        "DYLD_FALLBACK_LIBRARY_PATH": $cairo
+    },
     "enabled": true
   }
 ' "$CLAUDE_CONFIG" > "$tmpfile"
