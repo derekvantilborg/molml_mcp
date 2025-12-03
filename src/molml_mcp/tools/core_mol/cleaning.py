@@ -911,6 +911,222 @@ def neutralize_smiles_dataset(
     }
 
 
+@loggable
+def flatten_stereochemistry(smiles: list[str]) -> tuple[list[str], list[str]]:
+    """
+    Remove all stereochemistry information from a list of SMILES strings.
+    
+    This function processes a list of SMILES strings and removes all stereochemical 
+    information, including chiral centers (e.g., @, @@) and E/Z double bond 
+    configurations (e.g., /, \). This is useful when stereochemistry is not relevant 
+    to your analysis or when you want to treat stereoisomers as equivalent.
+    
+    **IMPORTANT**: The output SMILES are flattened (stereochemistry removed) AND 
+    canonicalized. No additional canonicalization step is needed after running this 
+    function, as RDKit's MolToSmiles with canonical=True and isomericSmiles=False is 
+    automatically applied. Ideally, this is the last step in your SMILES cleaning pipeline.
+    
+    Parameters
+    ----------
+    smiles : list[str]
+        List of SMILES strings to process. May contain stereochemical information.
+    
+    Returns
+    -------
+    tuple[list[str], list[str]]
+        A tuple containing:
+        - flattened_smiles : list[str]
+            SMILES strings without stereochemistry, canonicalized. Length matches input list.
+        - comments : list[str]
+            Comments for each SMILES indicating processing status. Length matches input list.
+            - "Passed": Stereochemistry removal successful (or no stereochemistry present)
+            - "Failed: Invalid SMILES string": Could not parse SMILES
+            - "Failed: <reason>": An error occurred during processing
+    
+    Examples
+    --------
+    # Remove chiral centers
+    smiles = ["C[C@H](O)CC", "C[C@@H](O)CC"]
+    flat, comments = flatten_stereochemistry(smiles)
+    # Returns: ["CC(O)CC", "CC(O)CC"], ["Passed", "Passed"]
+    # Note: Both enantiomers become identical after flattening
+    
+    # Remove E/Z double bond stereochemistry
+    smiles = ["C/C=C/C", "C/C=C\\C"]
+    flat, comments = flatten_stereochemistry(smiles)
+    # Returns: ["CC=CC", "CC=CC"], ["Passed", "Passed"]
+    
+    # Mixed stereochemistry
+    smiles = ["C[C@H](O)[C@@H](N)C(=O)O"]
+    flat, comments = flatten_stereochemistry(smiles)
+    # Returns: ["CC(O)C(N)C(=O)O"], ["Passed"]
+    
+    # Already flat molecule (no change)
+    smiles = ["c1ccccc1", "CCO"]
+    flat, comments = flatten_stereochemistry(smiles)
+    # Returns: ["c1ccccc1", "CCO"], ["Passed", "Passed"]
+    
+    Notes
+    -----
+    - This function operates on a LIST of SMILES strings, not a dataset/dataframe
+    - Output is BOTH flattened AND canonicalized - no additional canonicalization needed
+    - Removes ALL stereochemical information:
+      * Chiral centers: @, @@ symbols
+      * E/Z double bonds: /, \\ symbols
+      * Axial chirality: allene and similar configurations
+    - Stereoisomers become identical after flattening (e.g., R and S enantiomers)
+    - Molecules without stereochemistry are returned unchanged (but canonicalized)
+    - Output lists have the same length and order as input list
+    - Uses RDKit's RemoveStereochemistry() function
+    
+    Warnings
+    --------
+    - Loss of stereochemical information may not be appropriate for all applications:
+      * Drug molecules where stereochemistry affects activity (e.g., thalidomide)
+      * Natural products with specific stereochemical configurations
+      * When analyzing structure-activity relationships of stereoisomers
+    - After flattening, stereoisomers cannot be distinguished
+    - This operation is irreversible - stereochemistry information cannot be recovered
+    
+    See Also
+    --------
+    flatten_stereochemistry_dataset : For dataset-level stereochemistry removal
+    canonicalize_smiles : For canonicalization that preserves stereochemistry
+    """
+    from molml_mcp.tools.core_mol.smiles_ops import _flatten_stereochemistry
+    
+    flattened_smiles, comments = [], []
+    for smi in smiles:
+        flat_smi, comment = _flatten_stereochemistry(smi)
+        flattened_smiles.append(flat_smi)
+        comments.append(comment)
+    
+    return flattened_smiles, comments
+
+
+@loggable
+def flatten_stereochemistry_dataset(
+    resource_id: str,
+    column_name: str
+) -> dict:
+    """
+    Remove all stereochemistry information from SMILES strings in a specified column of a tabular dataset.
+    
+    This function processes a tabular dataset by removing all stereochemical information 
+    (chiral centers and E/Z double bonds) from SMILES strings in the specified column. 
+    It adds two new columns to the dataframe: one containing the flattened SMILES and 
+    another with comments logged during the flattening process.
+    
+    **IMPORTANT**: The output SMILES are flattened (stereochemistry removed) AND 
+    canonicalized. No additional canonicalization step is needed after running this 
+    function, as RDKit's MolToSmiles with canonical=True and isomericSmiles=False is 
+    automatically applied. Ideally, this is the last step in your SMILES cleaning pipeline.
+    
+    Parameters
+    ----------
+    resource_id : str
+        Identifier for the tabular dataset resource to be processed.
+    column_name : str
+        Name of the column containing SMILES strings to be flattened.
+    
+    Returns
+    -------
+    dict
+        A dictionary containing:
+        - resource_id : str
+            Identifier for the new resource with flattened data.
+        - n_rows : int
+            Total number of rows in the dataset.
+        - columns : list of str
+            List of all column names in the updated dataset.
+        - comments : dict
+            Dictionary with counts of different comment types logged during 
+            stereochemistry removal (e.g., number of successful operations, failures).
+        - preview : list of dict
+            Preview of the first 5 rows of the updated dataset.
+        - note : str
+            Explanation of the operation and canonicalization behavior.
+        - warning : str
+            Important warnings about loss of stereochemical information.
+        - suggestions : str
+            Recommendations for next steps.
+        - question_to_user : str
+            Question directed at the user/client regarding stereoisomer handling.
+    
+    Raises
+    ------
+    ValueError
+        If the specified column_name is not found in the dataset.
+    
+    Notes
+    -----
+    The function adds two new columns to the dataset:
+    - 'smiles_after_flattening': Contains the SMILES without stereochemistry, canonicalized.
+    - 'comments_after_flattening': Contains any comments or warnings from the 
+      flattening process.
+    
+    All stereochemical information is removed:
+    - Chiral centers (@ and @@ symbols)
+    - E/Z double bond configurations (/ and \\ symbols)
+    - Axial chirality (allenes, etc.)
+    
+    Warnings
+    --------
+    Loss of stereochemical information may significantly impact your analysis:
+    - Drug molecules where stereochemistry affects biological activity
+    - Natural products with specific stereochemical requirements
+    - Structure-activity relationship studies of stereoisomers
+    - After flattening, R/S enantiomers and E/Z isomers become indistinguishable
+    - This operation is irreversible
+    
+    Examples
+    --------
+    # Typical usage when stereochemistry is not relevant
+    result = flatten_stereochemistry_dataset(resource_id="20251203T120000_csv_ABC123.csv", 
+                                            column_name="smiles_after_neutralization")
+    
+    # As part of a cleaning pipeline
+    # Step 1: Remove salts
+    result1 = remove_salts_dataset(resource_id="initial.csv", column_name="smiles")
+    # Step 2: Neutralize
+    result2 = neutralize_smiles_dataset(resource_id=result1["resource_id"], 
+                                        column_name="smiles_after_salt_removal")
+    # Step 3: Flatten stereochemistry if not needed
+    result3 = flatten_stereochemistry_dataset(resource_id=result2["resource_id"], 
+                                              column_name="smiles_after_neutralization")
+    
+    See Also
+    --------
+    flatten_stereochemistry : For processing a list of SMILES strings
+    canonicalize_smiles_dataset : For canonicalization that preserves stereochemistry
+    neutralize_smiles_dataset : For charge neutralization
+    """
+    df = _load_resource(resource_id)
+    
+    if column_name not in df.columns:
+        raise ValueError(f"Column {column_name} not found in dataset.")
+
+    smiles_list = df[column_name].tolist()
+    flattened_smiles, comments = flatten_stereochemistry(smiles_list)
+
+    df['smiles_after_flattening'] = flattened_smiles
+    df['comments_after_flattening'] = comments
+
+    new_resource_id = _store_resource(df, 'csv')
+
+    return {
+        "resource_id": new_resource_id,
+        "n_rows": len(df),
+        "columns": list(df.columns),
+        "comments": dict(Counter(comments)),
+        "preview": df.head(5).to_dict(orient="records"),
+        "note": "Successful stereochemistry removal is marked by 'Passed' in comments. Output SMILES are both flattened AND canonicalized - no additional canonicalization step is needed.",
+        "warning": "All stereochemical information has been removed. Stereoisomers (e.g., R/S enantiomers, E/Z isomers) are now indistinguishable. This operation is irreversible.",
+        "suggestions": "Review molecules that failed flattening. Consider whether duplicate molecules now exist in your dataset due to stereoisomers becoming identical.",
+        "question_to_user": "Would you like to deduplicate the dataset now that stereoisomers have been flattened to identical structures?",
+    }
+
+
 def get_all_cleaning_tools():
     """Return a list of all molecular cleaning tools."""
     return [
@@ -924,6 +1140,8 @@ def get_all_cleaning_tools():
         defragment_smiles_dataset,
         neutralize_smiles,
         neutralize_smiles_dataset,
+        flatten_stereochemistry,
+        flatten_stereochemistry_dataset,
     ]
 
 
