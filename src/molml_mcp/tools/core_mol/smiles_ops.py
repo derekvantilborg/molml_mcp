@@ -30,33 +30,55 @@ def _canonicalize_smiles(smiles: list[str]) -> tuple[list[str], list[str]]:
 def _remove_pattern(smiles: list[str], smarts_pattern: str) -> tuple[list[str], list[str]]: 
     """ Remove some pattern from a SMILES string using the specified SMARTS.
 
-    :param smiles: SMILES string
-    :param smarts_pattern: SMARTS pattern
+    :param smiles: list of SMILES strings
+    :param smarts_pattern: SMARTS pattern (e.g., "[Cl,Na,Mg]")
     :return: cleaned SMILES without pattern, comments
     """
+    from rdkit import Chem
     from rdkit.Chem.SaltRemover import SaltRemover
 
-    remover = SaltRemover(defnData=smarts_pattern)
+    # Create SaltRemover with the provided SMARTS pattern
+    # defnData format: "SMARTS<tab>name" per line
+    remover = SaltRemover(defnData=f"{smarts_pattern}\tsalts")
 
     new_smi, comment = [], []
     for smi in smiles:
-
+        # If no fragments, no salts to remove
         if '.' not in smi:
             new_smi.append(smi)
             comment.append("Passed")
             continue
 
-        mol = MolFromSmiles(smi)
-
-        if mol is None:
-            new_smi.append(None)
-            comment.append("Failed: Invalid SMILES string")
-            continue
-
+        # Try to parse the SMILES with fragments
         try:
-            new_smi = Chem.MolToSmiles(remover.StripMol(mol))
-            new_smi.append(new_smi)
-            comment.append("Passed")
+            mol = Chem.MolFromSmiles(smi)
+            
+            if mol is None:
+                new_smi.append(None)
+                comment.append("Failed: Invalid SMILES string")
+                continue
+
+            # Remove salts
+            cleaned_mol = remover.StripMol(mol, dontRemoveEverything=True)
+            
+            if cleaned_mol is None or cleaned_mol.GetNumAtoms() == 0:
+                new_smi.append(None)
+                comment.append("Failed: All fragments were salts")
+                continue
+            
+            cleaned_smi = Chem.MolToSmiles(cleaned_mol)
+            
+            # If still has fragments after salt removal, keep the largest
+            if '.' in cleaned_smi:
+                frags = cleaned_smi.split('.')
+                # Sort by length and take longest
+                largest_frag = max(frags, key=len)
+                new_smi.append(largest_frag)
+                comment.append("Passed")
+            else:
+                new_smi.append(cleaned_smi)
+                comment.append("Passed")
+                
         except Exception as e:
             new_smi.append(None)
             comment.append(f"Failed: {str(e)}")
