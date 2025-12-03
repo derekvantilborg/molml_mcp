@@ -4,6 +4,8 @@ from molml_mcp.infrastructure.resources import _load_resource, _store_resource
 from molml_mcp.infrastructure.logging import loggable
 from molml_mcp.tools.core_mol.smiles_ops import _canonicalize_smiles
 
+from molml_mcp.constants import SMARTS_COMMON_SALTS, SMARTS_COMMON_ISOTOPES, SMARTS_NEUTRALIZATION_PATTERNS, COMMON_SOLVENTS
+
 
 @loggable
 def canonicalize_smiles_dataset(resource_id:str, column_name:str) -> dict:
@@ -66,8 +68,6 @@ def canonicalize_smiles_dataset(resource_id:str, column_name:str) -> dict:
     df['smiles_after_canonicalization'] = canonical_smiles
     df['comments_after_canonicalization'] = comments
 
-
-
     new_resource_id = _store_resource(df, 'csv')
 
     return {
@@ -76,40 +76,150 @@ def canonicalize_smiles_dataset(resource_id:str, column_name:str) -> dict:
         "columns": list(df.columns),
         "comments": dict(Counter(comments)),
         "preview": df.head(5).to_dict(orient="records"),
+        "note": "Successful canonicalization is marked by 'Passed' in comments, failure is marked by 'Failed: <reason>'.",
         "suggestions": "Consider further cleaning steps such as salt removal, tautomer canonicalization, charge neutralization, and stereochemistry handling.",
         "question_to_user": "Would you like to review failed SMILES entries or drop them from the dataset?",
     }
+
+
+@loggable
+def remove_salts(smiles: list[str], salt_smarts: str = SMARTS_COMMON_SALTS) -> tuple[list[str], list[str]]:
+    """
+    Remove common salt ions from a list of SMILES strings.
+    
+    This function strips common salt counterions (Cl, Na, Mg, Ca, K, Br, Zn, Ag, Al, 
+    Li, I, O, N, H) from molecular structures. It processes a list of SMILES strings
+    and returns cleaned versions without salt counterions.
+    
+    **IMPORTANT**: The default salt pattern works well for most use cases and should 
+    typically NOT be changed. Only modify `salt_smarts` if you have specific requirements 
+    for a specialized dataset (e.g., organometallic compounds where metals are part of 
+    the active structure).
+    
+    Parameters
+    ----------
+    smiles : list[str]
+        List of SMILES strings to process. Each may contain salt counterions.
+    salt_smarts : str, optional
+        SMARTS pattern defining which atoms/ions to remove.
+        **Default: "[Cl,Na,Mg,Ca,K,Br,Zn,Ag,Al,Li,I,O,N,H]"**
+        This default covers common pharmaceutical salts and should be used in most cases.
+        Only change this if you have a specific reason (e.g., you want to keep certain 
+        ions, or you're working with unusual salt forms).
+    
+    Returns
+    -------
+    tuple[list[str], list[str]]
+        A tuple containing:
+        - new_smiles : list[str]
+            SMILES strings with salts removed. Length matches input list.
+        - comments : list[str]
+            Comments for each SMILES indicating processing status. Length matches input list.
+            - "Passed": Salt removal successful
+            - "Failed: <reason>": An error occurred (e.g., invalid SMILES)
+    
+    Examples
+    --------
+    # Remove common salts (typical usage - don't change salt_smarts)
+    smiles = ["CC(=O)O.Na", "c1ccccc1.HCl", "CCO"]
+    clean_smiles, comments = remove_salts(smiles)
+    # Returns: ["CC(=O)O", "c1ccccc1", "CCO"], ["Passed", "Passed", "Passed"]
+    
+    # Only change salt_smarts if you have a specific reason:
+    # (e.g., removing only chloride and bromide)
+    smiles = ["CC(=O)O.Na", "c1ccccc1.Cl"]
+    clean_smiles, comments = remove_salts(smiles, salt_smarts="[Cl,Br]")
+    # Returns: ["CC(=O)O.Na", "c1ccccc1"], ["Passed", "Passed"]
+    
+    Notes
+    -----
+    - This function operates on a LIST of SMILES strings, not a dataset/dataframe
+    - The default pattern removes the most common pharmaceutical salt counterions
+    - If a molecule consists ONLY of salt ions, the result may be empty or fail
+    - For complex salt forms, multiple passes may be needed
+    - The function preserves the largest fragment if multiple fragments remain after 
+      salt removal
+    - Output lists have the same length and order as input list
+    
+    See Also
+    --------
+    canonicalize_smiles: For smiles canonicalization
+    """
+    new_smiles, comments = _remove_pattern(smiles, salt_smarts)
+    
+    return new_smiles, comments
+
+
+def _remove_pattern(smiles: list[str], smarts_pattern: str) -> tuple[list[str], list[str]]: 
+    """ Remove some pattern from a SMILES string using the specified SMARTS.
+
+    :param smiles: SMILES string
+    :param smarts_pattern: SMARTS pattern
+    :return: cleaned SMILES without pattern, comments
+    """
+    from rdkit import Chem
+    from rdkit.Chem.SaltRemover import SaltRemover
+
+    remover = SaltRemover(defnData=smarts_pattern)
+
+    new_smi, comment = [], []
+    for smi in smiles:
+
+        if '.' not in smi:
+            new_smi.append(smi)
+            comment.append("Passed")
+            continue
+
+        mol = MolFromSmiles(smi)
+
+        if mol is None:
+            new_smi.append(None)
+            comment.append("Failed: Invalid SMILES string")
+            continue
+
+        try:
+            new_smi = Chem.MolToSmiles(remover.StripMol(mol))
+            new_smi.append(new_smi)
+            comment.append("Passed")
+        except Exception as e:
+            new_smi.append(None)
+            comment.append(f"Failed: {str(e)}")
+
+    return new_smi, comment
+
+
+
 
 
 
 # Salt removal
 
 # def _desalt_molecule(self, mol: Chem.Mol) -> Tuple[Chem.Mol, bool]:
-    # """Remove salts from molecule."""
-    # if '.' not in Chem.MolToSmiles(mol):
-    #     return mol, True
+#     """Remove salts from molecule."""
+#     if '.' not in Chem.MolToSmiles(mol):
+#         return mol, True
     
-    # if self.desalt_policy == 'remove':
-    #     return None, False
+#     if self.desalt_policy == 'remove':
+#         return None, False
     
-    # if self.desalt_policy == 'keep':
-    #     mol = self.salt_remover.StripMol(mol, dontRemoveEverything=False)
-    #     desalted_smiles = Chem.MolToSmiles(mol)
+#     if self.desalt_policy == 'keep':
+#         mol = self.salt_remover.StripMol(mol, dontRemoveEverything=False)
+#         desalted_smiles = Chem.MolToSmiles(mol)
         
-    #     if '.' in desalted_smiles:
-    #         if self.brute_force_desalt:
-    #             # Keep largest fragment
-    #             mol = max(
-    #                 Chem.GetMolFrags(mol, asMols=True), 
-    #                 key=lambda x: x.GetNumAtoms()
-    #             )
-    #         else:
-    #             return None, False
+#         if '.' in desalted_smiles:
+#             if self.brute_force_desalt:
+#                 # Keep largest fragment
+#                 mol = max(
+#                     Chem.GetMolFrags(mol, asMols=True), 
+#                     key=lambda x: x.GetNumAtoms()
+#                 )
+#             else:
+#                 return None, False
         
-    #     if mol and mol.GetNumAtoms() > 0:
-    #         return mol, True
+#         if mol and mol.GetNumAtoms() > 0:
+#             return mol, True
     
-    # return None, False
+#     return None, False
 
 # Tautomer canonicalization
 # Charge neutralization
