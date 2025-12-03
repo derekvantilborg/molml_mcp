@@ -1127,6 +1127,20 @@ def flatten_stereochemistry_dataset(
     }
 
 
+def get_molecule_standardization_recommendations():
+    """Return recommendations for molecular standardization steps."""
+    return (
+        "Recommended molecular standardization steps include:\n"
+        "1. Remove common salts using `remove_salts()` or `remove_salts_dataset()`.\n"
+        "2. Remove common solvents using `remove_common_solvents()` or `remove_common_solvents_dataset()`.\n"
+        "3. Defragment molecules to keep the largest fragment using `defragment_smiles()` or `defragment_smiles_dataset()`.\n"
+        "4. Neutralize charged species using `neutralize_smiles()` or `neutralize_smiles_dataset()`.\n"
+        "5. Canonicalize SMILES strings using `canonicalize_smiles()` or `canonicalize_smiles_dataset()`.\n"
+        "6. Optionally, flatten stereochemistry if not relevant using `flatten_stereochemistry()` or `flatten_stereochemistry_dataset()`.\n"
+        "These steps help ensure consistency and reliability in molecular representations for downstream analyses."
+    )
+
+
 def get_all_cleaning_tools():
     """Return a list of all molecular cleaning tools."""
     return [
@@ -1153,4 +1167,5 @@ def get_all_cleaning_tools():
 # Tautomer canonicalization
 # Stereochemistry handling
 # remove duplicates
+# remove isotopes
 
