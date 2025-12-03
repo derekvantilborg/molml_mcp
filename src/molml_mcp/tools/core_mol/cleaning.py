@@ -2,9 +2,65 @@ from collections import Counter
 from rdkit.Chem import MolFromSmiles, MolToSmiles
 from molml_mcp.infrastructure.resources import _load_resource, _store_resource
 from molml_mcp.infrastructure.logging import loggable
-from molml_mcp.tools.core_mol.smiles_ops import _canonicalize_smiles
+from molml_mcp.tools.core_mol.smiles_ops import _canonicalize_smiles, _remove_pattern
 
 from molml_mcp.constants import SMARTS_COMMON_SALTS, SMARTS_COMMON_ISOTOPES, SMARTS_NEUTRALIZATION_PATTERNS, COMMON_SOLVENTS
+
+
+
+@loggable
+def canonicalize_smiles(smiles: list[str]) -> tuple[list[str], list[str]]:
+    """
+    Convert SMILES strings to their canonical form.
+    
+    This function processes a list of SMILES strings and converts each to its 
+    canonical representation using RDKit. Canonicalization ensures that equivalent 
+    molecular structures have identical SMILES representations, which is essential 
+    for deduplication, comparison, and downstream processing.
+    
+    Parameters
+    ----------
+    smiles : list[str]
+        List of SMILES strings to canonicalize.
+    
+    Returns
+    -------
+    tuple[list[str], list[str]]
+        A tuple containing:
+        - canonical_smiles : list[str]
+            Canonicalized SMILES strings. Length matches input list.
+            Failed conversions return the original SMILES or None.
+        - comments : list[str]
+            Comments for each SMILES indicating processing status. Length matches input list.
+            - "Passed": Canonicalization successful
+            - "Failed: <reason>": An error occurred (e.g., invalid SMILES)
+    
+    Examples
+    --------
+    # Canonicalize a list of SMILES
+    smiles = ["CCO", "C(C)O", "c1ccccc1"]
+    canonical, comments = canonicalize_smiles(smiles)
+    # Returns: ["CCO", "CCO", "c1ccccc1"], ["Passed", "Passed", "Passed"]
+    
+    # Invalid SMILES handling
+    smiles = ["CCO", "invalid", "c1ccccc1"]
+    canonical, comments = canonicalize_smiles(smiles)
+    # Returns with "Failed: <reason>" in comments for invalid entry
+    
+    Notes
+    -----
+    - This function operates on a LIST of SMILES strings, not a dataset/dataframe
+    - Failed conversions are handled gracefully with error messages in comments
+    - Canonicalization is idempotent: canonical SMILES remain unchanged
+    - Output lists have the same length and order as input list
+    
+    See Also
+    --------
+    canonicalize_smiles_dataset : For dataset-level canonicalization
+    """
+    canonic, comment = _canonicalize_smiles(smiles)
+
+    return canonic, comment
 
 
 @loggable
@@ -143,7 +199,7 @@ def remove_salts(smiles: list[str], salt_smarts: str = SMARTS_COMMON_SALTS) -> t
     
     See Also
     --------
-    canonicalize_smiles: For smiles canonicalization
+    remove_salts_dataset: For dataset-level salt removal
     """
     new_smiles, comments = _remove_pattern(smiles, salt_smarts)
     
@@ -249,44 +305,6 @@ def remove_salts_dataset(
         "question_to_user": "Would you like to review failed SMILES entries or drop them from the dataset?",
     }
 
-
-
-def _remove_pattern(smiles: list[str], smarts_pattern: str) -> tuple[list[str], list[str]]: 
-    """ Remove some pattern from a SMILES string using the specified SMARTS.
-
-    :param smiles: SMILES string
-    :param smarts_pattern: SMARTS pattern
-    :return: cleaned SMILES without pattern, comments
-    """
-    from rdkit import Chem
-    from rdkit.Chem.SaltRemover import SaltRemover
-
-    remover = SaltRemover(defnData=smarts_pattern)
-
-    new_smi, comment = [], []
-    for smi in smiles:
-
-        if '.' not in smi:
-            new_smi.append(smi)
-            comment.append("Passed")
-            continue
-
-        mol = MolFromSmiles(smi)
-
-        if mol is None:
-            new_smi.append(None)
-            comment.append("Failed: Invalid SMILES string")
-            continue
-
-        try:
-            new_smi = Chem.MolToSmiles(remover.StripMol(mol))
-            new_smi.append(new_smi)
-            comment.append("Passed")
-        except Exception as e:
-            new_smi.append(None)
-            comment.append(f"Failed: {str(e)}")
-
-    return new_smi, comment
 
 
 
