@@ -306,6 +306,16 @@ def remove_salts_dataset(
     }
 
 
+def get_all_cleaning_tools():
+    """Return a list of all molecular cleaning tools."""
+    return [
+        canonicalize_smiles,
+        canonicalize_smiles_dataset,
+        remove_salts,
+        remove_salts_dataset,
+    ]
+
+
 
 
 
