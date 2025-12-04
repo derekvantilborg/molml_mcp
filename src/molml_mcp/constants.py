@@ -61,21 +61,5 @@ SMARTS_NEUTRALIZATION_PATTERNS = (
     ('[$([N-]C=O)]', 'N'),
 )
 
-SMARTS_COMMON_ISOTOPES = [
-    '[11c]',
-    '[14C]',
-    '[10B]',
-    '[11C]',
-    '[15n]',
-    '[14c]',
-    '[17F]',
-    '[3H]',
-    '[18F]',
-    '[13C]',
-    '[19F]',
-    '[18O]',
-    '[2H]',
-]
-
 SMARTS_COMMON_SALTS = "[Cl,Na,Mg,Ca,K,Br,Zn,Ag,Al,Li,I,O,N,H]"
 
