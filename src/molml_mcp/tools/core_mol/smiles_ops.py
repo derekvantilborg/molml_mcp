@@ -488,12 +488,13 @@ def _canonicalize_tautomer_smiles(smiles: str) -> tuple[str, str]:
         return None, f"Failed: {str(e)}"
 
 
-def _normalize_reionize_smiles(smi: str) -> tuple[str | None, str]:
+def _normalize_smiles(smi: str) -> tuple[str | None, str]:
     """
-    Normalize functional groups (e.g. nitro, N-oxide) and reionize to
-    a preferred charge state using RDKit's rdMolStandardize.
-    
-    Returns canonical isomeric SMILES and a comment.
+    Normalize functional groups (e.g. nitro, N-oxide, azides) using
+    RDKit's rdMolStandardize.Normalizer to fix “weird valence forms”
+
+    Returns:
+        (canonical isomeric SMILES or None, comment)
     """
     mol = MolFromSmiles(smi)
     if mol is None:
@@ -501,11 +502,34 @@ def _normalize_reionize_smiles(smi: str) -> tuple[str | None, str]:
 
     try:
         mol = _NORMALIZER.normalize(mol)
-        mol = _REIONIZER.reionize(mol)
         smi_norm = MolToSmiles(mol, canonical=True, isomericSmiles=True)
         return smi_norm, "Passed"
     except Exception as e:
-        return None, f"Failed: Normalization/reionization error: {e}"
+        return None, f"Failed: Normalization error: {e}"
+    
+
+def _reionize_smiles(smi: str) -> tuple[str | None, str]:
+    """
+    Reionize a SMILES string to a preferred charge distribution using
+    RDKit's rdMolStandardize.Reionizer.
+
+    Expects a "reasonable" structure (ideally already normalized). 
+    Also helps with zwitterions and multi-site ionizable systems before 
+    neutralization in case that is performed later on.
+
+    Returns:
+        (canonical isomeric SMILES or None, comment)
+    """
+    mol = MolFromSmiles(smi)
+    if mol is None:
+        return None, "Failed: Invalid SMILES string"
+
+    try:
+        mol = _REIONIZER.reionize(mol)
+        smi_reion = MolToSmiles(mol, canonical=True, isomericSmiles=True)
+        return smi_reion, "Passed"
+    except Exception as e:
+        return None, f"Failed: Reionization error: {e}"
     
 
 def _disconnect_metals_smiles(
