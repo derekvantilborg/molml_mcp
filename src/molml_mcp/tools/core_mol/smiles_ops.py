@@ -646,6 +646,9 @@ def _validate_smiles(smi: str) -> tuple[str | None, str]:
     Returns:
         (original SMILES or None, comment).
     """
+    if _is_invalid_smiles(smi):
+        return None, "Skipped: Invalid SMILES string"
+    
     try:
         mol = MolFromSmiles(smi)
     except Exception as e:
