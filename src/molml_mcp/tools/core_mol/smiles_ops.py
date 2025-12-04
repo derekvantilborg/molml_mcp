@@ -50,6 +50,10 @@ def _remove_pattern(smi: str, smarts_pattern: str) -> tuple[str, str]:
     """
     from rdkit.Chem.SaltRemover import SaltRemover
 
+    # Handle None input (failed previous step)
+    if smi is None:
+        return None, "Skipped: Previous step failed"
+
     # Create SaltRemover with the provided SMARTS pattern
     # defnData format: "SMARTS<tab>name" per line
     remover = SaltRemover(defnData=f"{smarts_pattern}\tsalts")
@@ -111,6 +115,10 @@ def _strip_common_solvent_fragments(smi: str) -> tuple[str, str]:
       is returned unchanged (assumed main molecule of interest).
     """
 
+    # Handle None input (failed previous step)
+    if smi is None:
+        return None, "Skipped: Previous step failed"
+
     # Only act on fragmented SMILES
     if '.' not in smi:
         return smi, 'Pass'
@@ -146,6 +154,10 @@ def _strip_common_solvent_fragments(smi: str) -> tuple[str, str]:
 def _defragment_smiles(smiles: str, keep_largest_fragment: bool = True) -> tuple[str, str]:
     """ Defragment a SMILES string by removing smaller fragments. """
 
+    # Handle None input (failed previous step)
+    if smiles is None:
+        return None, "Skipped: Previous step failed"
+
     # If no fragments, nothing to do
     if '.' not in smiles:
         return smiles, "Pass"
@@ -180,6 +192,10 @@ def _neutralize_smiles(smiles: str, transformations: list[(Mol, Mol)]) -> tuple[
     :param smiles: Canonical SMILES string
     :return: SMILES of the neutralized molecule
     """
+    # Handle None input (failed previous step)
+    if smiles is None:
+        return None, "Skipped: Previous step failed"
+    
     mol = MolFromSmiles(smiles)
 
     if mol is None:
@@ -206,6 +222,10 @@ def _flatten_stereochemistry(smiles: str) -> tuple[str, str]:
     Remove all stereochemistry (chiral centers + E/Z double bonds) 
     from a SMILES string using RDKit.
     """
+    # Handle None input (failed previous step)
+    if smiles is None:
+        return None, "Skipped: Previous step failed"
+    
     mol = MolFromSmiles(smiles)
 
     if mol is None:
@@ -230,6 +250,10 @@ def _remove_isotopes(smiles: str) -> tuple[str, str]:
         [13CH3][18F]   ->  CCF
         CC([2H])O      ->  CCO
     """
+    # Handle None input (failed previous step)
+    if smiles is None:
+        return None, "Skipped: Previous step failed"
+    
     mol = MolFromSmiles(smiles)
 
     if mol is None:
@@ -403,6 +427,10 @@ def _standardize_stereo_smiles(
     Returns:
         Tuple of (SMILES string, comment). Returns (None, error message) if the input is invalid.
     """
+    # Handle None input (failed previous step)
+    if smiles is None:
+        return None, "Skipped: Previous step failed"
+    
     mol = MolFromSmiles(smiles)
     if mol is None:
         return None, "Failed: Invalid SMILES string"
@@ -463,13 +491,16 @@ def _canonicalize_tautomer_smiles(smiles: str) -> tuple[str, str]:
     Returns a single canonical SMILES for all tautomers of the same scaffold.
     This ensures that different tautomeric forms of the same molecule are 
     represented by the same SMILES string.
+    
+    **WARNING**: This function can REMOVE or CHANGE stereochemistry. This is
+    a known limitation of RDKit's tautomer enumerator.
 
     Args:
         smiles: Input SMILES string.
 
     Returns:
         Tuple of (SMILES string, comment). Returns (None, error message) if 
-        the input is invalid.
+        the input is invalid. Comment includes warning if stereochemistry was lost.
 
     Examples:
         >>> canonicalize_tautomer_smiles("O=C1NC=CC=C1")
@@ -477,13 +508,28 @@ def _canonicalize_tautomer_smiles(smiles: str) -> tuple[str, str]:
         >>> canonicalize_tautomer_smiles("OC1=NC=CC=C1")
         ('O=C1NC=CC=C1', 'Passed')   # same output as above
     """
+    # Handle None input (failed previous step)
+    if smiles is None:
+        return None, "Skipped: Previous step failed"
+    
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return None, "Failed: Invalid SMILES string"
 
     try:
+        # Check if input has stereochemistry
+        has_stereo_input = '@' in smiles or '/' in smiles or '\\' in smiles
+        
         can_mol = _TAUT_ENUM.Canonicalize(mol)
-        return Chem.MolToSmiles(can_mol, canonical=True, isomericSmiles=True), "Passed"
+        canonical_smiles = Chem.MolToSmiles(can_mol, canonical=True, isomericSmiles=True)
+        
+        # Check if stereochemistry was lost
+        has_stereo_output = '@' in canonical_smiles or '/' in canonical_smiles or '\\' in canonical_smiles
+        
+        if has_stereo_input and not has_stereo_output:
+            return canonical_smiles, "Passed (WARNING: Stereochemistry was removed by tautomer canonicalization)"
+        
+        return canonical_smiles, "Passed"
     except Exception as e:
         return None, f"Failed: {str(e)}"
 
@@ -491,11 +537,15 @@ def _canonicalize_tautomer_smiles(smiles: str) -> tuple[str, str]:
 def _normalize_smiles(smi: str) -> tuple[str | None, str]:
     """
     Normalize functional groups (e.g. nitro, N-oxide, azides) using
-    RDKit's rdMolStandardize.Normalizer to fix “weird valence forms”
+    RDKit's rdMolStandardize.Normalizer to fix "weird valence forms"
 
     Returns:
         (canonical isomeric SMILES or None, comment)
     """
+    # Handle None input (failed previous step)
+    if smi is None:
+        return None, "Skipped: Previous step failed"
+    
     mol = MolFromSmiles(smi)
     if mol is None:
         return None, "Failed: Invalid SMILES string"
@@ -520,6 +570,10 @@ def _reionize_smiles(smi: str) -> tuple[str | None, str]:
     Returns:
         (canonical isomeric SMILES or None, comment)
     """
+    # Handle None input (failed previous step)
+    if smi is None:
+        return None, "Skipped: Previous step failed"
+    
     mol = MolFromSmiles(smi)
     if mol is None:
         return None, "Failed: Invalid SMILES string"
@@ -542,6 +596,10 @@ def _disconnect_metals_smiles(
 
     Returns transformed SMILES (or None) and a comment.
     """
+    # Handle None input (failed previous step)
+    if smi is None:
+        return None, "Skipped: Previous step failed"
+    
     mol = MolFromSmiles(smi)
     if mol is None:
         return None, "Failed: Invalid SMILES string"
