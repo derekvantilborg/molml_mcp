@@ -2,7 +2,7 @@ from collections import Counter
 from rdkit.Chem import MolFromSmiles, MolToSmiles
 from molml_mcp.infrastructure.resources import _load_resource, _store_resource
 from molml_mcp.infrastructure.logging import loggable
-from molml_mcp.tools.core_mol.smiles_ops import _canonicalize_smiles, _remove_pattern, _strip_common_solvent_fragments, _defragment_smiles, _normalize_smiles
+from molml_mcp.tools.core_mol.smiles_ops import _canonicalize_smiles, _remove_pattern, _strip_common_solvent_fragments, _defragment_smiles, _normalize_smiles, _reionize_smiles
 
 from molml_mcp.constants import SMARTS_COMMON_SALTS
 
@@ -1847,6 +1847,230 @@ def normalize_functional_groups_dataset(
     }
 
 
+@loggable
+def reionize_smiles(smiles: list[str]) -> tuple[list[str], list[str]]:
+    """
+    Reionize molecules to their preferred charge distribution using RDKit's Reionizer.
+    
+    This function processes a list of SMILES strings and adjusts their charge distribution 
+    to a chemically preferred form. Reionization is particularly useful for handling 
+    zwitterions, molecules with multiple ionizable sites, and ensuring consistent charge 
+    states across a dataset. It should typically be applied AFTER functional group 
+    normalization but BEFORE charge neutralization.
+    
+    **IMPORTANT**: The output SMILES are reionized AND canonicalized. No additional 
+    canonicalization step is needed after running this function, as RDKit's MolToSmiles 
+    with canonical=True is automatically applied.
+    
+    Common reionizations include:
+    - Amino acids: Correcting zwitterionic forms to appropriate charge states
+    - Multi-ionizable compounds: Setting charges to preferred positions
+    - Protonation state correction: Ensuring chemically reasonable charge distribution
+    - pH-dependent ionization: Standardizing to a consistent protonation state
+    
+    Parameters
+    ----------
+    smiles : list[str]
+        List of SMILES strings to reionize. Should ideally be already normalized.
+    
+    Returns
+    -------
+    tuple[list[str], list[str]]
+        A tuple containing:
+        - reionized_smiles : list[str]
+            Reionized canonical SMILES strings. Length matches input list.
+            Failed reionizations return None.
+        - comments : list[str]
+            Comments for each SMILES indicating processing status. Length matches input list.
+            - "Passed": Reionization successful
+            - "Failed: Invalid SMILES string": Input could not be parsed
+            - "Failed: Reionization error: <details>": An error occurred during reionization
+    
+    Examples
+    --------
+    # Reionize a zwitterionic amino acid
+    smiles = ["C([C@@H](C(=O)[O-])[NH3+])O"]
+    reionized, comments = reionize_smiles(smiles)
+    # Returns with adjusted charge distribution
+    
+    # Handle molecules with multiple ionizable sites
+    smiles = ["c1ccc(cc1)C(=O)[O-]", "c1ccc(cc1)[NH3+]"]
+    reionized, comments = reionize_smiles(smiles)
+    # Returns with preferred charge states
+    
+    # Already optimally ionized (may return unchanged)
+    smiles = ["c1ccccc1", "CCO"]
+    reionized, comments = reionize_smiles(smiles)
+    # Returns: ["c1ccccc1", "CCO"], ["Passed", "Passed"]
+    
+    Notes
+    -----
+    - This function operates on a LIST of SMILES strings, not a dataset/dataframe
+    - Output is BOTH reionized AND canonicalized - no additional canonicalization needed
+    - Best applied after functional group normalization (normalize_functional_groups)
+    - Should be applied BEFORE neutralization if you want controlled charge states
+    - Expects "reasonable" molecular structures (not highly unusual valence states)
+    - Particularly useful for:
+      * Zwitterionic compounds (amino acids, betaines)
+      * Molecules with multiple ionizable groups
+      * Ensuring consistent protonation states
+    - Output lists have the same length and order as input list
+    
+    Warnings
+    --------
+    - Reionization may change the charge state in ways that don't match specific 
+      experimental conditions (pH, solvent, temperature)
+    - For molecules with complex ionization patterns, the "preferred" state may not 
+      match biological or experimental relevance
+    - Zwitterions may be converted to neutral or differently charged forms
+    
+    See Also
+    --------
+    reionize_smiles_dataset : Dataset version of this function
+    normalize_functional_groups : Should be run BEFORE reionization
+    neutralize_smiles : For complete charge removal (applied AFTER reionization)
+    """
+    results = [_reionize_smiles(smi) for smi in smiles]
+    reionized_smiles = [smi for smi, _ in results]
+    comments = [cmt for _, cmt in results]
+    return reionized_smiles, comments
+
+
+@loggable
+def reionize_smiles_dataset(
+    resource_id: str,
+    column_name: str
+) -> dict:
+    """
+    Reionize molecules to their preferred charge distribution in a specified column of a tabular dataset.
+    
+    This function processes a tabular dataset by adjusting the charge distribution of 
+    molecules to chemically preferred forms. It adds two new columns to the dataframe: 
+    one containing the reionized SMILES and another with comments logged during the 
+    reionization process.
+    
+    **IMPORTANT**: The output SMILES are reionized AND canonicalized. No additional 
+    canonicalization step is needed after running this function.
+    
+    Reionization is particularly useful for:
+    - Standardizing zwitterionic amino acids and betaines
+    - Handling molecules with multiple ionizable sites
+    - Ensuring consistent charge distributions across a dataset
+    - Correcting protonation states to chemically reasonable forms
+    
+    Parameters
+    ----------
+    resource_id : str
+        Identifier for the tabular dataset resource to be processed.
+    column_name : str
+        Name of the column containing SMILES strings to be reionized.
+    
+    Returns
+    -------
+    dict
+        A dictionary containing:
+        - resource_id : str
+            Identifier for the new resource with reionized data.
+        - n_rows : int
+            Total number of rows in the dataset.
+        - columns : list of str
+            List of all column names in the updated dataset.
+        - comments : dict
+            Dictionary with counts of different comment types logged during 
+            reionization (e.g., number of successful operations, failures).
+        - preview : list of dict
+            Preview of the first 5 rows of the updated dataset.
+        - note : str
+            Explanation of the operation.
+        - warning : str
+            Important warnings about charge state changes.
+        - suggestions : str
+            Recommendations for next steps.
+    
+    Raises
+    ------
+    ValueError
+        If the specified column_name is not found in the dataset.
+    
+    Notes
+    -----
+    The function adds two new columns to the dataset:
+    - 'smiles_after_reionization': Contains the reionized SMILES.
+    - 'comments_after_reionization': Contains any comments or warnings from the 
+      reionization process.
+    
+    Typical workflow position:
+    1. Remove salts
+    2. Remove solvents
+    3. Defragment
+    4. Normalize functional groups
+    5. **Reionize** ← This step
+    6. Neutralize charges (optional, if complete charge removal desired)
+    7. Canonicalize tautomers
+    8. Final canonicalization
+    
+    Warnings
+    --------
+    - Reionization changes charge states and may not match specific experimental conditions
+    - Zwitterions may be converted to different forms
+    - For pH-dependent studies, reionization may not reflect the desired protonation state
+    
+    Examples
+    --------
+    # Typical usage after functional group normalization
+    result = reionize_smiles_dataset(
+        resource_id="20251204T120000_csv_ABC123.csv", 
+        column_name="smiles_after_functional_group_normalization"
+    )
+    
+    # As part of a cleaning pipeline
+    # Step 1: Remove salts
+    result1 = remove_salts_dataset(resource_id="initial.csv", column_name="smiles")
+    # Step 2: Defragment
+    result2 = defragment_smiles_dataset(resource_id=result1["resource_id"], 
+                                        column_name="smiles_after_salt_removal")
+    # Step 3: Normalize functional groups
+    result3 = normalize_functional_groups_dataset(resource_id=result2["resource_id"], 
+                                                   column_name="smiles_after_defragmentation")
+    # Step 4: Reionize
+    result4 = reionize_smiles_dataset(resource_id=result3["resource_id"], 
+                                      column_name="smiles_after_functional_group_normalization")
+    # Step 5: Neutralize (optional)
+    result5 = neutralize_smiles_dataset(resource_id=result4["resource_id"], 
+                                        column_name="smiles_after_reionization")
+    
+    See Also
+    --------
+    reionize_smiles : For processing a list of SMILES strings
+    normalize_functional_groups_dataset : Should be run BEFORE reionization
+    neutralize_smiles_dataset : For complete charge removal (after reionization)
+    canonicalize_tautomers_dataset : For tautomer standardization
+    """
+    df = _load_resource(resource_id)
+    
+    if column_name not in df.columns:
+        raise ValueError(f"Column {column_name} not found in dataset.")
+
+    smiles_list = df[column_name].tolist()
+    reionized_smiles, comments = reionize_smiles(smiles_list)
+
+    df['smiles_after_reionization'] = reionized_smiles
+    df['comments_after_reionization'] = comments
+
+    new_resource_id = _store_resource(df, 'csv')
+
+    return {
+        "resource_id": new_resource_id,
+        "n_rows": len(df),
+        "columns": list(df.columns),
+        "comments": dict(Counter(comments)),
+        "preview": df.head(5).to_dict(orient="records"),
+        "note": "Successful reionization is marked by 'Passed' in comments. Charge distributions have been adjusted to chemically preferred forms. The output SMILES are canonical and isomeric.",
+        "warning": "Reionization may change charge states in ways that don't match specific experimental conditions (pH, solvent, etc.). Zwitterions may be converted to different forms.",
+        "suggestions": "Review molecules that failed reionization. Consider proceeding with charge neutralization (if complete charge removal desired) or tautomer canonicalization steps.",
+    }
+
+
 
 
 def get_molecule_standardization_recommendations():
@@ -1884,6 +2108,8 @@ def get_all_cleaning_tools():
         canonicalize_tautomers_dataset,
         normalize_functional_groups,
         normalize_functional_groups_dataset,
+        reionize_smiles,
+        reionize_smiles_dataset,
     ]
 
 
