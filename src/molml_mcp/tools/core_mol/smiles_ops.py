@@ -15,11 +15,13 @@ from rdkit.Chem.EnumerateStereoisomers import (
     StereoEnumerationOptions,
 )
 from rdkit.Chem import FindMolChiralCenters
-from rdkit.Chem.MolStandardize import rdMolStandardize
+from rdkit.Chem import rdMolStandardize
 
 # create one global enumerator so I don't reallocate it on every call
 _TAUT_ENUM = rdMolStandardize.TautomerEnumerator()
-
+_NORMALIZER = rdMolStandardize.Normalizer()
+_REIONIZER = rdMolStandardize.Reionizer()
+_METAL_DISCONNECTOR = rdMolStandardize.MetalDisconnector()
 
 
 def _canonicalize_smiles(smi: str) -> tuple[str, str]: 
@@ -484,3 +486,76 @@ def _canonicalize_tautomer_smiles(smiles: str) -> tuple[str, str]:
         return Chem.MolToSmiles(can_mol, canonical=True, isomericSmiles=True), "Passed"
     except Exception as e:
         return None, f"Failed: {str(e)}"
+
+
+def _normalize_reionize_smiles(smi: str) -> tuple[str | None, str]:
+    """
+    Normalize functional groups (e.g. nitro, N-oxide) and reionize to
+    a preferred charge state using RDKit's rdMolStandardize.
+    
+    Returns canonical isomeric SMILES and a comment.
+    """
+    mol = MolFromSmiles(smi)
+    if mol is None:
+        return None, "Failed: Invalid SMILES string"
+
+    try:
+        mol = _NORMALIZER.normalize(mol)
+        mol = _REIONIZER.reionize(mol)
+        smi_norm = MolToSmiles(mol, canonical=True, isomericSmiles=True)
+        return smi_norm, "Passed"
+    except Exception as e:
+        return None, f"Failed: Normalization/reionization error: {e}"
+    
+
+def _disconnect_metals_smiles(
+    smi: str,
+    drop_inorganics: bool = False,
+) -> tuple[str | None, str]:
+    """
+    Disconnect coordinate bonds to metals and optionally drop purely inorganic
+    molecules (no carbon atoms).
+
+    Returns transformed SMILES (or None) and a comment.
+    """
+    mol = MolFromSmiles(smi)
+    if mol is None:
+        return None, "Failed: Invalid SMILES string"
+
+    try:
+        mol = _METAL_DISCONNECTOR.Disconnect(mol)
+
+        if drop_inorganics:
+            has_carbon = any(atom.GetAtomicNum() == 6 for atom in mol.GetAtoms())
+            if not has_carbon:
+                return None, "Failed: Inorganic molecule (no carbon atoms)"
+
+        smi_out = MolToSmiles(mol, canonical=True, isomericSmiles=True)
+        return smi_out, "Passed"
+    except Exception as e:
+        return None, f"Failed: Metal disconnection error: {e}"
+
+
+def _validate_smiles(smi: str) -> tuple[str | None, str]:
+    """
+    Lightweight validation that a SMILES string is still a sane RDKit molecule.
+
+    - Parses with MolFromSmiles (includes sanitization).
+    - Requires at least one atom.
+
+    Returns:
+        (original SMILES or None, comment).
+    """
+    try:
+        mol = MolFromSmiles(smi)
+    except Exception as e:
+        return None, f"Failed: Exception during parsing: {e}"
+
+    if mol is None:
+        return None, "Failed: Invalid SMILES string"
+
+    if mol.GetNumAtoms() == 0:
+        return None, "Failed: Empty molecule (0 atoms)"
+
+    return smi, "Passed"
+
