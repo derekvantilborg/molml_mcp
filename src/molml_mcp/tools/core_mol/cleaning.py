@@ -4,7 +4,7 @@ from molml_mcp.infrastructure.resources import _load_resource, _store_resource
 from molml_mcp.infrastructure.logging import loggable
 from molml_mcp.tools.core_mol.smiles_ops import _canonicalize_smiles, _remove_pattern, _strip_common_solvent_fragments, _defragment_smiles
 
-from molml_mcp.constants import SMARTS_COMMON_SALTS, SMARTS_COMMON_ISOTOPES, SMARTS_NEUTRALIZATION_PATTERNS, COMMON_SOLVENTS
+from molml_mcp.constants import SMARTS_COMMON_SALTS, SMARTS_NEUTRALIZATION_PATTERNS, COMMON_SOLVENTS
 
 
 
@@ -1127,6 +1127,228 @@ def flatten_stereochemistry_dataset(
     }
 
 
+@loggable
+def remove_isotopes(smiles: list[str]) -> tuple[list[str], list[str]]:
+    """
+    Remove isotopic labels from a list of SMILES strings.
+    
+    This function processes a list of SMILES strings and removes all isotopic labels,
+    converting isotopically-labeled atoms to their default (most common) isotope forms.
+    For example, deuterium ([2H]), carbon-13 ([13C]), and fluorine-18 ([18F]) are 
+    converted to their standard forms.
+    
+    **IMPORTANT**: The output SMILES are de-isotoped AND canonicalized. No additional 
+    canonicalization step is needed after running this function, as RDKit's MolToSmiles 
+    with canonical=True is automatically applied.
+    
+    Parameters
+    ----------
+    smiles : list[str]
+        List of SMILES strings to process. May contain isotopic labels.
+    
+    Returns
+    -------
+    tuple[list[str], list[str]]
+        A tuple containing:
+        - clean_smiles : list[str]
+            SMILES strings without isotopic labels, canonicalized. Length matches input list.
+        - comments : list[str]
+            Comments for each SMILES indicating processing status. Length matches input list.
+            - "Passed": Isotope removal successful (or no isotopes present)
+            - "Failed: Invalid SMILES string": Could not parse SMILES
+            - "Failed: <reason>": An error occurred during processing
+    
+    Examples
+    --------
+    # Remove carbon-13 and fluorine-18 labels
+    smiles = ["[13CH3][18F]"]
+    clean, comments = remove_isotopes(smiles)
+    # Returns: ["CCF"], ["Passed"]
+    
+    # Remove deuterium label
+    smiles = ["CC([2H])O", "CCO"]
+    clean, comments = remove_isotopes(smiles)
+    # Returns: ["CCO", "CCO"], ["Passed", "Passed"]
+    
+    # Mixed isotope labels
+    smiles = ["[13C]C([2H])([2H])[18O]"]
+    clean, comments = remove_isotopes(smiles)
+    # Returns: ["CCO"], ["Passed"]
+    
+    # Already unlabeled molecule (no change)
+    smiles = ["c1ccccc1", "CCO"]
+    clean, comments = remove_isotopes(smiles)
+    # Returns: ["c1ccccc1", "CCO"], ["Passed", "Passed"]
+    
+    Notes
+    -----
+    - This function operates on a LIST of SMILES strings, not a dataset/dataframe
+    - Output is BOTH de-isotoped AND canonicalized - no additional canonicalization needed
+    - Removes ALL isotopic labels:
+      * Deuterium ([2H]) → hydrogen (H)
+      * Tritium ([3H]) → hydrogen (H)
+      * Carbon-13 ([13C]) → carbon-12 (C)
+      * Carbon-14 ([14C]) → carbon-12 (C)
+      * Nitrogen-15 ([15N]) → nitrogen-14 (N)
+      * Oxygen-18 ([18O]) → oxygen-16 (O)
+      * Fluorine-18 ([18F]) → fluorine-19 (F)
+      * And all other isotopic variants
+    - Molecules without isotopic labels are returned unchanged (but canonicalized)
+    - Stereochemistry is preserved during isotope removal
+    - Output lists have the same length and order as input list
+    
+    Warnings
+    --------
+    - Loss of isotopic information may not be appropriate for all applications:
+      * Radiolabeled compounds used in pharmacokinetic studies
+      * NMR spectroscopy experiments requiring specific isotope labels
+      * Mass spectrometry studies tracking isotope incorporation
+      * Metabolic flux analysis using isotope tracers
+    - This operation is irreversible - isotope labels cannot be recovered
+    
+    See Also
+    --------
+    remove_isotopes_dataset : For dataset-level isotope removal
+    canonicalize_smiles : For canonicalization without isotope removal
+    """
+    from molml_mcp.tools.core_mol.smiles_ops import _remove_isotopes
+    
+    clean_smiles, comments = [], []
+    for smi in smiles:
+        clean_smi, comment = _remove_isotopes(smi)
+        clean_smiles.append(clean_smi)
+        comments.append(comment)
+    
+    return clean_smiles, comments
+
+
+@loggable
+def remove_isotopes_dataset(
+    resource_id: str,
+    column_name: str
+) -> dict:
+    """
+    Remove isotopic labels from SMILES strings in a specified column of a tabular dataset.
+    
+    This function processes a tabular dataset by removing all isotopic labels from SMILES 
+    strings in the specified column. It adds two new columns to the dataframe: one 
+    containing the de-isotoped SMILES and another with comments logged during the removal 
+    process.
+    
+    **IMPORTANT**: The output SMILES are de-isotoped AND canonicalized. No additional 
+    canonicalization step is needed after running this function, as RDKit's MolToSmiles 
+    with canonical=True is automatically applied.
+    
+    Parameters
+    ----------
+    resource_id : str
+        Identifier for the tabular dataset resource to be processed.
+    column_name : str
+        Name of the column containing SMILES strings to be de-isotoped.
+    
+    Returns
+    -------
+    dict
+        A dictionary containing:
+        - resource_id : str
+            Identifier for the new resource with de-isotoped data.
+        - n_rows : int
+            Total number of rows in the dataset.
+        - columns : list of str
+            List of all column names in the updated dataset.
+        - comments : dict
+            Dictionary with counts of different comment types logged during 
+            isotope removal (e.g., number of successful operations, failures).
+        - preview : list of dict
+            Preview of the first 5 rows of the updated dataset.
+        - note : str
+            Explanation of the operation and canonicalization behavior.
+        - warning : str
+            Important warnings about loss of isotopic information.
+        - suggestions : str
+            Recommendations for next steps.
+        - question_to_user : str
+            Question directed at the user/client regarding isotope handling.
+    
+    Raises
+    ------
+    ValueError
+        If the specified column_name is not found in the dataset.
+    
+    Notes
+    -----
+    The function adds two new columns to the dataset:
+    - 'smiles_after_isotope_removal': Contains the SMILES without isotopic labels, canonicalized.
+    - 'comments_after_isotope_removal': Contains any comments or warnings from the 
+      removal process.
+    
+    All isotopic labels are removed:
+    - Deuterium ([2H]), tritium ([3H])
+    - Carbon-13 ([13C]), carbon-14 ([14C])
+    - Nitrogen-15 ([15N])
+    - Oxygen-18 ([18O])
+    - Fluorine-18 ([18F])
+    - All other isotopic variants
+    
+    Stereochemistry is preserved during isotope removal.
+    
+    Warnings
+    --------
+    Loss of isotopic information may significantly impact certain analyses:
+    - Radiolabeling studies (e.g., PET tracers with [18F])
+    - NMR experiments requiring deuterium or carbon-13 labels
+    - Mass spectrometry isotope tracing experiments
+    - Metabolic flux analysis using stable isotopes
+    - This operation is irreversible
+    
+    Examples
+    --------
+    # Typical usage when isotope labels are not relevant
+    result = remove_isotopes_dataset(resource_id="20251204T120000_csv_ABC123.csv", 
+                                     column_name="smiles_after_neutralization")
+    
+    # As part of a cleaning pipeline
+    # Step 1: Remove salts
+    result1 = remove_salts_dataset(resource_id="initial.csv", column_name="smiles")
+    # Step 2: Neutralize
+    result2 = neutralize_smiles_dataset(resource_id=result1["resource_id"], 
+                                        column_name="smiles_after_salt_removal")
+    # Step 3: Remove isotopes if not needed
+    result3 = remove_isotopes_dataset(resource_id=result2["resource_id"], 
+                                      column_name="smiles_after_neutralization")
+    
+    See Also
+    --------
+    remove_isotopes : For processing a list of SMILES strings
+    canonicalize_smiles_dataset : For canonicalization without isotope removal
+    neutralize_smiles_dataset : For charge neutralization
+    """
+    df = _load_resource(resource_id)
+    
+    if column_name not in df.columns:
+        raise ValueError(f"Column {column_name} not found in dataset.")
+
+    smiles_list = df[column_name].tolist()
+    clean_smiles, comments = remove_isotopes(smiles_list)
+
+    df['smiles_after_isotope_removal'] = clean_smiles
+    df['comments_after_isotope_removal'] = comments
+
+    new_resource_id = _store_resource(df, 'csv')
+
+    return {
+        "resource_id": new_resource_id,
+        "n_rows": len(df),
+        "columns": list(df.columns),
+        "comments": dict(Counter(comments)),
+        "preview": df.head(5).to_dict(orient="records"),
+        "note": "Successful isotope removal is marked by 'Passed' in comments. Output SMILES are both de-isotoped AND canonicalized - no additional canonicalization step is needed.",
+        "warning": "All isotopic labels have been removed. This may affect studies involving radiolabeling, NMR spectroscopy, or isotope tracing experiments. This operation is irreversible.",
+        "suggestions": "Review molecules that failed isotope removal. Consider whether this affects your analysis if working with radiolabeled compounds or isotope tracing studies.",
+        "question_to_user": "Are you working with any isotope-labeled compounds that require special handling?",
+    }
+
+
 def get_molecule_standardization_recommendations():
     """Return recommendations for molecular standardization steps."""
     return (
@@ -1156,8 +1378,9 @@ def get_all_cleaning_tools():
         neutralize_smiles_dataset,
         flatten_stereochemistry,
         flatten_stereochemistry_dataset,
+        remove_isotopes,
+        remove_isotopes_dataset,
     ]
-
 
 
 
@@ -1166,6 +1389,5 @@ def get_all_cleaning_tools():
 
 # Tautomer canonicalization
 # Stereochemistry handling
-# remove duplicates
-# remove isotopes
+# Aromaticity standardization
 
