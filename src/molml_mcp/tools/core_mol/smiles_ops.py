@@ -1,7 +1,22 @@
+from __future__ import annotations
 from rdkit.Chem import MolFromSmiles, MolToSmiles, MolFromSmarts, RemoveStereochemistry
 from rdkit.Chem.AllChem import ReplaceSubstructs
 from rdkit.Chem.rdchem import Mol
+from molml_mcp.infrastructure.logging import loggable
 from molml_mcp.constants import COMMON_SOLVENTS, SMARTS_NEUTRALIZATION_PATTERNS
+
+from typing import List, Optional
+import numpy as np
+
+from rdkit import Chem
+from rdkit.Chem import AllChem
+from rdkit.Chem.EnumerateStereoisomers import (
+    EnumerateStereoisomers,
+    StereoEnumerationOptions,
+)
+from rdkit.Chem import FindMolChiralCenters
+
+
 
 
 def _canonicalize_smiles(smi: str) -> tuple[str, str]: 
@@ -222,5 +237,213 @@ def _remove_isotopes(smiles: str) -> tuple[str, str]:
                 atom.SetIsotope(0)
         # Keep stereo etc.; isotopes are gone because they're all 0 now
         return MolToSmiles(mol, isomericSmiles=True, canonical=True), "Passed"
+    except Exception as e:
+        return None, f"Failed: {str(e)}"
+
+
+def enumerate_stereo_isomers_smiles(smiles: str, max_isomers: int = 32, try_embedding: bool = False, only_unassigned: bool = True, 
+                                    only_unique: bool = True, random_seed: int = 42) -> List[str]:
+    """
+    Enumerate stereoisomers for a SMILES string.
+
+    Args:
+        smiles: Input SMILES.
+        max_isomers: Maximum number of stereoisomers to enumerate.
+        try_embedding: Let RDKit try 3D embedding to prune degenerates.
+        only_unassigned: Only enumerate unassigned stereocenters if True.
+        random_seed: Random seed for RDKit's enumeration.
+
+    Returns:
+        List of isomeric SMILES strings (possibly empty if invalid or no isomers).
+    """
+    mol = MolFromSmiles(smiles)
+    if mol is None:
+        return []
+
+    np.random.seed(random_seed)
+
+    opts = StereoEnumerationOptions(
+        tryEmbedding=try_embedding,
+        maxIsomers=max_isomers,
+        onlyUnassigned=only_unassigned,
+        rand=random_seed,
+    )
+
+    try:
+        isomers = list(EnumerateStereoisomers(mol, options=opts))
+    except Exception:
+        return []
+
+    if not isomers:
+        return []
+
+    # deduplicate
+    isomers = _deduplicate_isomers(isomers)
+
+    # Return canonical isomeric SMILES for each isomer
+    return [MolToSmiles(iso, canonical=True, isomericSmiles=True) for iso in isomers]
+
+
+def _calculate_conformer_energy(mol: Chem.Mol, random_seed: int = 42) -> Optional[float]:
+    """
+    Calculate MMFF94 (or UFF) energy for a single conformer.
+    Returns None if embedding or energy evaluation fails.
+    """
+    try:
+        mol_h = Chem.AddHs(mol)
+
+        if AllChem.EmbedMolecule(mol_h, randomSeed=random_seed) != 0:
+            return None
+
+        if AllChem.MMFFHasAllMoleculeParams(mol_h):
+            props = AllChem.MMFFGetMoleculeProperties(mol_h)
+            ff = AllChem.MMFFGetMoleculeForceField(mol_h, props)
+            ff.Minimize()
+            return ff.CalcEnergy()
+        else:
+            AllChem.UFFOptimizeMolecule(mol_h)
+            ff = AllChem.UFFGetMoleculeForceField(mol_h)
+            return ff.CalcEnergy()
+    except Exception:
+        return None
+
+
+def _select_isomer_from_mols(
+    isomer_mols: List[Chem.Mol],
+    assign_policy: str = "first",  # "first" | "random" | "lowest"
+    random_seed: int = 42,
+) -> Optional[Chem.Mol]:
+    """
+    Select a single isomer from a list of RDKit mols.
+    """
+    if not isomer_mols:
+        return None
+
+    if len(isomer_mols) == 1 or assign_policy == "first":
+        return isomer_mols[0]
+
+    if assign_policy == "random":
+        np.random.seed(random_seed)
+        idx = np.random.randint(len(isomer_mols))
+        return isomer_mols[idx]
+
+    if assign_policy == "lowest":
+        scored = []
+        for iso in isomer_mols:
+            e = _calculate_conformer_energy(iso, random_seed=random_seed)
+            if e is not None:
+                scored.append((e, iso))
+        if scored:
+            return min(scored, key=lambda x: x[0])[1]
+        else:
+            # fall back to first if all energies failed
+            return isomer_mols[0]
+
+    # Fallback
+    return isomer_mols[0]
+
+
+def _has_chiral_centers(mol: Chem.Mol) -> bool:
+    """
+    Check if molecule has any chiral centers (assigned or unassigned).
+    Returns False if detection fails.
+    """
+    try:
+        chiral_centers = FindMolChiralCenters(mol, includeUnassigned=True)
+        return len(chiral_centers) > 0
+    except Exception:
+        return False
+
+
+def _deduplicate_isomers(isomer_mols: List[Chem.Mol]) -> List[Chem.Mol]:
+    """
+    Remove duplicate stereoisomers based on canonical SMILES.
+    """
+    seen = set()
+    unique = []
+    for iso in isomer_mols:
+        smi = MolToSmiles(iso, canonical=True, isomericSmiles=True)
+        if smi not in seen:
+            seen.add(smi)
+            unique.append(iso)
+    return unique
+
+
+def standardize_stereo_smiles(
+    smiles: str,
+    stereo_policy: str = "keep",          # "keep" | "assign"
+    assign_policy: str = "first",         # "first" | "random" | "lowest"
+    max_isomers: int = 32,
+    try_embedding: bool = False,
+    only_unassigned: bool = True,
+    only_unique: bool = True,
+    random_seed: int = 42,
+) -> tuple[str, str]:
+    """
+    1→1 stereochemistry handling for use in a cleaning/standardization pipeline.
+
+    Args:
+        smiles: Input SMILES.
+        stereo_policy:
+            - "keep":    return canonical isomeric SMILES (no stereo changes)
+            - "assign":  enumerate stereoisomers and pick one (see `assign_policy`)
+        assign_policy: How to pick a single isomer when stereo_policy == "assign":
+            - "first":   first enumerated
+            - "random":  random choice
+            - "lowest":  lowest MMFF94/UFF energy
+        max_isomers, try_embedding, only_unassigned, only_unique, random_seed:
+            Parameters forwarded to enumeration / energy evaluation.
+
+    Returns:
+        Tuple of (SMILES string, comment). Returns (None, error message) if the input is invalid.
+    """
+    mol = MolFromSmiles(smiles)
+    if mol is None:
+        return None, "Failed: Invalid SMILES string"
+
+    try:
+        # Detect chiral centers (including unassigned)
+        has_chirality = _has_chiral_centers(mol)
+        
+        # Handle "keep" policy or molecules without chirality
+        if stereo_policy == "keep" or not has_chirality:
+            return MolToSmiles(mol, canonical=True, isomericSmiles=True), "Passed"
+
+        if stereo_policy != "assign":
+            # For now we only support "keep" and "assign" here;
+            # flattening/"remove" you said you already handle elsewhere.
+            return MolToSmiles(mol, canonical=True, isomericSmiles=True), "Passed"
+
+        # --- Assign policy: enumerate isomers, then choose one ---
+        isomer_smiles = enumerate_stereo_isomers_smiles(
+            smiles=smiles,
+            max_isomers=max_isomers,
+            try_embedding=try_embedding,
+            only_unassigned=only_unassigned,
+            only_unique=only_unique,
+            random_seed=random_seed,
+        )
+
+        if not isomer_smiles:
+            return MolToSmiles(mol, canonical=True, isomericSmiles=True), "Passed"
+
+        # Convert SMILES back to mol objects for selection
+        isomer_mols = [MolFromSmiles(smi) for smi in isomer_smiles]
+        isomer_mols = [m for m in isomer_mols if m is not None]
+
+        if not isomer_mols:
+            return None, "Failed: Could not parse enumerated stereoisomers"
+
+        selected = _select_isomer_from_mols(
+            isomer_mols,
+            assign_policy=assign_policy,
+            random_seed=random_seed,
+        )
+
+        if selected is None:
+            return MolToSmiles(mol, canonical=True, isomericSmiles=True), "Passed"
+
+        return MolToSmiles(selected, canonical=True, isomericSmiles=True), "Passed"
+    
     except Exception as e:
         return None, f"Failed: {str(e)}"
