@@ -301,8 +301,12 @@ def _mol_has_pattern(mol: Mol, smarts: str):
         
     Returns:
         bool: True if pattern matches, False if no match or invalid pattern
+        
+    Note:
+        Uses mergeHs=True to convert explicit H in SMARTS (e.g., -[#8]-[#1]) to
+        implicit H queries (e.g., [#8;!H0]), allowing matches with standard SMILES.
     """
-    pattern = MolFromSmarts(smarts)
+    pattern = MolFromSmarts(smarts, mergeHs=True)
     if pattern is None:
         # Invalid SMARTS pattern - return False instead of crashing
         return False
@@ -466,7 +470,7 @@ def get_all_substructure_matching_tools():
         find_structural_patterns_in_smiles,
         find_functional_group_patterns_in_smiles,
         find_functional_group_patterns_in_list_of_smiles,
-        find_structural_patterns_in_list_of_smiles,
+        find_structural_patterns_in_list_of_smiles
     ]
 
 
@@ -475,3 +479,5 @@ def get_all_substructure_matching_tools():
 
 # find_structural_patterns_in_smiles('smi')
 # find_functional_group_patterns_in_smiles(smi)
+
+
