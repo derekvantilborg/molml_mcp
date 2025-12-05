@@ -3383,6 +3383,201 @@ def default_SMILES_standardization_pipeline_dataset(
     }
 
 
+from molml_mcp.tools.core_mol.pains import _check_smiles_for_pains
+
+@loggable
+def check_smiles_for_pains(smiles: list[str]) -> list[str]:
+    """Screen multiple molecules for PAINS (Pan-Assay INterference compoundS) substructures.
+    
+    Screens a list of SMILES against 480 PAINS patterns from Baell & Holloway 2010.
+    PAINS are substructures that cause false positives in biological assays through
+    non-specific binding, aggregation, redox activity, or assay interference.
+    
+    Args:
+        smiles: List of SMILES strings to screen (e.g., ['CCO', 'O=C1C=CC(=O)C=C1'])
+        
+    Returns:
+        list[str]: Screening results for each molecule, in one of three formats:
+                   - 'Passed' if no PAINS patterns detected (molecule is clean)
+                   - 'PAINS: <reasons>' if PAINS detected, with comma-separated explanations
+                   - 'Failed: <error>' if input is invalid or cannot be parsed
+                   
+    Example:
+        check_smiles_for_pains(['CCO', 'O=C1C=CC(=O)C=C1', 'Oc1ccccc1O'])
+        # Returns:
+        # ['Passed',
+        #  'PAINS: quinone; redox cycling electrophile',
+        #  'PAINS: catechol; redox-active metal chelator']
+        
+    Note:
+        PAINS patterns are highly specific to problematic scaffolds observed in
+        high-throughput screening, not generic functional group filters.
+        
+    Reference:
+        Baell JB, Holloway GA. J Med Chem 53 (2010) 2719-2740. doi:10.1021/jm901137j
+    """
+
+    pains_hits = [_check_smiles_for_pains(smi) for smi in smiles]
+
+    return pains_hits
+
+
+@loggable
+def check_smiles_for_pains_dataset(
+    resource_id: str,
+    column_name: str
+) -> dict:
+    """Screen molecules in a dataset for PAINS (Pan-Assay INterference compoundS) substructures.
+    
+    This function processes a tabular dataset by screening SMILES strings for PAINS patterns
+    from Baell & Holloway 2010. It adds a new column with PAINS screening results for each
+    molecule. This is useful for filtering out problematic molecules before high-throughput
+    screening or drug discovery campaigns.
+    
+    PAINS are substructures that cause false positives in biological assays through
+    non-specific mechanisms like aggregation, redox activity, metal chelation, or
+    covalent modification of assay proteins.
+    
+    Parameters
+    ----------
+    resource_id : str
+        Identifier for the tabular dataset resource to be processed.
+    column_name : str
+        Name of the column containing SMILES strings to screen.
+    
+    Returns
+    -------
+    dict
+        A dictionary containing:
+        - resource_id : str
+            Identifier for the new resource with PAINS screening results.
+        - n_rows : int
+            Total number of rows in the dataset.
+        - columns : list of str
+            List of all column names in the updated dataset.
+        - preview : list of dict
+            Preview of the first 5 rows of the updated dataset.
+        - pains_summary : dict
+            Summary statistics with counts of different screening results:
+            - 'Passed': Number of clean molecules
+            - 'PAINS: <reasons>': Number flagged (by reason)
+            - 'Failed: <error>': Number that failed screening
+        - n_clean : int
+            Number of molecules without PAINS patterns.
+        - n_flagged : int
+            Number of molecules with PAINS patterns.
+        - n_failed : int
+            Number of molecules that failed screening.
+        - flagged_rate : float
+            Percentage of molecules flagged as PAINS.
+        - note : str
+            Explanation of the screening results.
+        - suggestions : str
+            Recommendations for next steps.
+    
+    Raises
+    ------
+    ValueError
+        If the specified column_name is not found in the dataset.
+    
+    Notes
+    -----
+    The function adds one new column to the dataset:
+    - 'pains_screening': Contains screening results in one of three formats:
+      * 'Passed': No PAINS patterns detected (molecule is clean)
+      * 'PAINS: <reasons>': PAINS detected with comma-separated explanations
+      * 'Failed: <error>': Input is invalid or cannot be parsed
+    
+    Typical workflow position:
+    - **After cleaning/standardization**: Screen cleaned molecules before modeling
+    - **Before HTS campaigns**: Filter out known assay interferents
+    - **During hit validation**: Check if active compounds contain PAINS
+    
+    Warnings
+    --------
+    - PAINS patterns are context-specific and were identified from HTS data
+    - Not all flagged molecules are necessarily problematic in all assays
+    - Some PAINS-containing molecules are approved drugs (e.g., phenolics)
+    - Consider the biological context and assay type when filtering
+    - Detection rate varies by dataset composition (typically 30-50% in screening libraries)
+    
+    Examples
+    --------
+    # Screen cleaned molecules for PAINS
+    result = check_smiles_for_pains_dataset(
+        resource_id="20251204T120000_csv_ABC123.csv", 
+        column_name="standardized_smiles"
+    )
+    
+    # Check screening statistics
+    print(f"Clean: {result['n_clean']}/{result['n_rows']}")
+    print(f"Flagged: {result['n_flagged']}/{result['n_rows']} ({result['flagged_rate']:.1f}%)")
+    
+    # Filter to only clean molecules
+    df = _load_resource(result["resource_id"])
+    df_clean = df[df["pains_screening"] == "Passed"]
+    
+    # Identify molecules with specific PAINS patterns
+    df_quinones = df[df["pains_screening"].str.contains("quinone", na=False)]
+    
+    See Also
+    --------
+    check_smiles_for_pains : For processing a list of SMILES strings
+    
+    Reference
+    ---------
+    Baell JB, Holloway GA. New substructure filters for removal of pan assay 
+    interference compounds (PAINS) from screening libraries and for their 
+    exclusion in bioassays. J Med Chem 53 (2010) 2719-2740. doi:10.1021/jm901137j
+    """
+    df = _load_resource(resource_id)
+    
+    if column_name not in df.columns:
+        raise ValueError(f"Column '{column_name}' not found in dataset. Available columns: {list(df.columns)}")
+    
+    smiles_list = df[column_name].tolist()
+    pains_results = check_smiles_for_pains(smiles_list)
+    
+    df['pains_screening'] = pains_results
+    
+    new_resource_id = _store_resource(df, 'csv')
+    
+    # Calculate screening statistics
+    n_clean = sum(1 for r in pains_results if r == "Passed")
+    n_flagged = sum(1 for r in pains_results if r.startswith("PAINS:"))
+    n_failed = sum(1 for r in pains_results if r.startswith("Failed:"))
+    flagged_rate = (n_flagged / len(pains_results) * 100) if pains_results else 0.0
+    
+    # Count different result types
+    from collections import Counter
+    pains_summary = dict(Counter(pains_results))
+    
+    return {
+        "resource_id": new_resource_id,
+        "n_rows": len(df),
+        "columns": list(df.columns),
+        "preview": df.head(5).to_dict(orient="records"),
+        "pains_summary": pains_summary,
+        "n_clean": n_clean,
+        "n_flagged": n_flagged,
+        "n_failed": n_failed,
+        "flagged_rate": flagged_rate,
+        "note": (
+            f"PAINS screening complete. {n_clean} molecules passed (clean), "
+            f"{n_flagged} flagged as PAINS ({flagged_rate:.1f}%), {n_failed} failed screening. "
+            f"Results are in 'pains_screening' column. PAINS patterns are context-specific "
+            f"and were identified from high-throughput screening data. Not all flagged molecules "
+            f"are necessarily problematic in all assays."
+        ),
+        "suggestions": (
+            "Review flagged molecules in the 'pains_screening' column. Consider filtering out "
+            "PAINS-containing molecules before HTS campaigns, but evaluate on a case-by-case basis "
+            "for hit validation. Some approved drugs contain PAINS-like substructures. "
+            "Filter clean molecules with: df[df['pains_screening'] == 'Passed']"
+        )
+    }
+
+
 def get_all_cleaning_tools():
     """Return a list of all molecular cleaning tools."""
     return [
@@ -3413,6 +3608,8 @@ def get_all_cleaning_tools():
         disconnect_metals_smiles_dataset,
         validate_smiles,
         validate_smiles_dataset,
+        check_smiles_for_pains,
+        check_smiles_for_pains_dataset,
     ]
 
 
