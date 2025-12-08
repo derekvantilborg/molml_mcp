@@ -7,9 +7,14 @@ from molml_mcp.tools.core_mol.descriptors import list_rdkit_descriptors, calcula
 from molml_mcp.tools.core_mol.visualize import smiles_to_acs1996_png, smiles_grid_to_acs1996_png
 from molml_mcp.tools.core_mol.smiles_ops import enumerate_stereo_isomers_smiles
 from molml_mcp.tools.core_mol.substructure_matching import get_all_substructure_matching_tools
+from molml_mcp.infrastructure.resources import get_all_resources_tools
 
 # create an MCP server 
 mcp = FastMCP("molml-mcp") 
+
+# Add supported resource types tool
+for tool_func in get_all_resources_tools():
+    mcp.add_tool(tool_func)
 
 # Add dataset management tools
 for tool_func in get_all_dataset_tools():
