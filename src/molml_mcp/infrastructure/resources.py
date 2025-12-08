@@ -138,77 +138,180 @@ def _get_parent_info() -> dict:
 
 
 def _generate_id(type_tag: str) -> str:
-    """Generate unique resource ID: {type_tag}_{8_hex_chars}{extension}."""
+    """Generate unique resource ID suffix: _{8_hex_chars}{extension}."""
     rand = secrets.token_hex(4).upper()  # 8 hex chars
-
     ext = TYPE_REGISTRY[type_tag]["ext"]
     
-    return f"{type_tag}_{rand}{ext}"
+    return f"_{rand}{ext}"
 
 
 def _store_resource(obj: Any, project_manifest_path: str, filename: str, explaination: str, type_tag: str) -> str:
-    """Internal: Store object to disk, auto-track in manifest with parent function metadata.
+    """Internal: Store object to disk with unique ID, auto-track in manifest with metadata.
+    
+    Stores an object (DataFrame, model, JSON, etc.) to disk with a unique resource ID
+    to prevent overwriting. The filename pattern is: {filename}_{8_hex_chars}{ext}
+    Example: "cleaned_data_A3F2B1D4.csv"
+    
+    Automatically captures parent function metadata (name, inputs, module) and adds an
+    entry to the project manifest for full audit trail tracking. The type information
+    is stored in the manifest, not in the filename.
     
     Args:
-        obj: Object to store (DataFrame, model, etc.)
-        project_manifest_path: Path to project_manifest.json
-        filename: Base filename (no extension)
-        explaination: Brief description of resource
-        type_tag: Type from TYPE_REGISTRY (csv, model, json, etc.)
+        obj: Object to store (DataFrame, model, dict, etc.)
+        project_manifest_path: Full path to project_manifest.json file
+        filename: Base filename without extension (e.g., "cleaned_data")
+        explaination: Brief description of what this resource contains
+        type_tag: Resource type from TYPE_REGISTRY (csv, model, json, etc.)
         
     Returns:
-        Path to stored file
+        Full path to the stored file (Path object)
+        
+    Raises:
+        ValueError: If type_tag is not supported (check TYPE_REGISTRY)
+        FileNotFoundError: If project manifest doesn't exist at specified path
+        
+    Example:
+        path = _store_resource(
+            obj=dataframe,
+            project_manifest_path="/path/to/project/manifest.json",
+            filename="cleaned_smiles",
+            explaination="SMILES after canonicalization and salt removal",
+            type_tag="csv"
+        )
+        # Stores as: /path/to/project/cleaned_smiles_A3F2B1D4.csv
+        # Returns: Path('/path/to/project/cleaned_smiles_A3F2B1D4.csv')
+        
+    Note:
+        The unique ID prevents accidental overwrites. The type is stored in the manifest,
+        not the filename, enforcing that resources must be loaded through the manifest.
     """
     if type_tag not in TYPE_REGISTRY:
         raise ValueError(f"Unsupported resource type: {type_tag}")
     
-    # gerate unique resource ID so if the client gives the same filename again, we dont overwrite. 
-    # The type tag is included in the RID so we can always read the file later
+    # Generate unique resource ID to prevent overwrites if same filename is used again
+    # Format: _{8_hex_chars}{ext} (e.g., "_A3F2B1D4.csv")
+    # Type is NOT in filename - it's stored in manifest for traceability
     rid = _generate_id(type_tag)
 
-    # first get data directory from manifest path,
+    # Get data directory from manifest path (same directory as manifest)
     data_dir = Path(project_manifest_path).parent
-    path = data_dir / f"{filename}_{rid}"
+    # Combine user's filename with unique resource ID
+    path = data_dir / f"{filename}{rid}"
 
+    # Get the appropriate save function for this type and save the object
     save_fn: Callable[[Any, Path], None] = TYPE_REGISTRY[type_tag]['save']
     save_fn(obj, path)
+    
+    # Generate timestamp for manifest entry
     ts = _get_timestamp()
 
+    # Capture parent function metadata (name, inputs, module) for audit trail
     parent_info = _get_parent_info()
 
-    # add entry to project manifest
-    add_to_project_manifest(project_manifest_path=project_manifest_path, 
-                            filename=filename, type_tag=type_tag, explaination=explaination, timestamp=ts, 
-                            parent_function_name=parent_info['function_name'], 
-                            parent_function_inputs=parent_info['function_inputs'], 
-                            module_name=parent_info['module'])
+    # Add entry to project manifest with all metadata
+    add_to_project_manifest(
+        project_manifest_path=project_manifest_path, 
+        filename=filename, 
+        type_tag=type_tag, 
+        explaination=explaination, 
+        timestamp=ts, 
+        parent_function_name=parent_info['function_name'], 
+        parent_function_inputs=parent_info['function_inputs'], 
+        module_name=parent_info['module']
+    )
 
     return path
 
 
 def _load_resource(project_manifest_path: str, filename: str) -> Any:
-    """Internal: Load resource from disk by resource_id, inferring type from ID format."""
-    # infer type from the ID. They are always in the format: TIMESTAMP_TYPE_RANDOM.ext
-
-    # get directory location from manifest path after verifying manifest exists
+    """Internal: Load resource from disk by looking up type in manifest.
+    
+    Loads a resource by finding its entry in the project manifest to determine the
+    correct type and file extension. The manifest is the source of truth for all
+    tracked resources. This enforces traceability by requiring all resources to be
+    tracked in the manifest before loading.
+    
+    Args:
+        project_manifest_path: Full path to the project_manifest.json file
+        filename: Base filename as stored in manifest (e.g., "cleaned_data")
+                 DO NOT include the unique ID or extension.
+        
+    Returns:
+        The loaded object (DataFrame, dict, model, etc.)
+        
+    Raises:
+        FileNotFoundError: If manifest doesn't exist or resource file not found on disk
+        ValueError: If resource is not tracked in manifest (must be added via _store_resource)
+        
+    Example:
+        # Load by base filename only
+        df = _load_resource(
+            project_manifest_path="/path/to/project/manifest.json",
+            filename="cleaned_data"
+        )
+        
+    Note:
+        The resource MUST be tracked in the manifest. You cannot load untracked files.
+        This enforces proper resource management and traceability.
+    """
+    # Verify manifest exists
     _check_if_manifest_exists(project_manifest_path)
-    data_dir = Path(project_manifest_path).parent
-
-    try:
-        type_tag = filename.split("_")[-2]
-    except ValueError:
-        raise ValueError(f"Invalid resource_id format: {filename}")
-
+    
+    # Load manifest to look up resource metadata
+    import json
+    with open(project_manifest_path, "r") as f:
+        manifest = json.load(f)
+    
+    resources = manifest.get("resources", [])
+    
+    # Search for the resource in manifest by exact filename match only
+    resource_entry = None
+    for res in resources:
+        if res["filename"] == filename:
+            resource_entry = res
+            break
+    
+    if resource_entry is None:
+        raise ValueError(
+            f"Resource '{filename}' not found in manifest at {project_manifest_path}. "
+            f"Available resources: {[r['filename'] for r in resources]}. "
+            f"Use add_to_project_manifest() to track this resource first."
+        )
+    
+    # Extract type and extension from manifest
+    type_tag = resource_entry["type_tag"]
+    
     if type_tag not in TYPE_REGISTRY:
-        raise ValueError(f"Unknown resource type in id: {filename}")
-
-    path = data_dir / f"{filename}"
-
-    if not path.exists():
-        raise FileNotFoundError(f"Resource file not found: {path}")
-
+        raise ValueError(f"Unknown resource type '{type_tag}' in manifest for resource '{filename}'")
+    
+    # Get the data directory (same as manifest directory)
+    data_dir = Path(project_manifest_path).parent
+    
+    # Find the actual file on disk
+    # Files are stored as: {base_filename}_{random_id}{ext}
+    base_filename = resource_entry["filename"]
+    ext = TYPE_REGISTRY[type_tag]["ext"]
+    
+    # Search for files matching the pattern
+    matching_files = list(data_dir.glob(f"{base_filename}_*{ext}"))
+    
+    if not matching_files:
+        raise FileNotFoundError(
+            f"Resource file for '{base_filename}' (type: {type_tag}) not found in {data_dir}. "
+            f"Expected pattern: {base_filename}_*{ext}"
+        )
+    
+    if len(matching_files) > 1:
+        # If multiple files match, this shouldn't happen with unique IDs, but handle it
+        raise ValueError(
+            f"Multiple files found for resource '{base_filename}': {[f.name for f in matching_files]}. "
+            f"This indicates a problem with resource management."
+        )
+    
+    # Load the file using the appropriate loader
+    path = matching_files[0]
     load_fn: Callable[[Path], Any] = TYPE_REGISTRY[type_tag]["load"]
-
+    
     return load_fn(path)
 
 
