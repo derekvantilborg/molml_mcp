@@ -196,7 +196,8 @@ def _store_resource(obj: Any, project_manifest_path: str, filename: str, explain
     # Get data directory from manifest path (same directory as manifest)
     data_dir = Path(project_manifest_path).parent
     # Combine user's filename with unique resource ID
-    path = data_dir / f"{filename}{rid}"
+    output_filename_id = f"{filename}{rid}"
+    path = data_dir / output_filename_id
 
     # Get the appropriate save function for this type and save the object
     save_fn: Callable[[Any, Path], None] = TYPE_REGISTRY[type_tag]['save']
@@ -211,7 +212,7 @@ def _store_resource(obj: Any, project_manifest_path: str, filename: str, explain
     # Add entry to project manifest with all metadata
     add_to_project_manifest(
         project_manifest_path=project_manifest_path, 
-        filename=filename, 
+        filename=output_filename_id, 
         type_tag=type_tag, 
         explaination=explaination, 
         timestamp=ts, 
@@ -220,7 +221,7 @@ def _store_resource(obj: Any, project_manifest_path: str, filename: str, explain
         module_name=parent_info['module']
     )
 
-    return path
+    return output_filename_id
 
 
 def _load_resource(project_manifest_path: str, filename: str) -> Any:
