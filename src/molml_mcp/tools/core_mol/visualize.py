@@ -25,6 +25,9 @@ except Exception:  # ImportError + any cairo dlopen issues
 @loggable
 def smiles_to_acs1996_png(
     smiles: str,
+    project_manifest_path: str,
+    filename: str,
+    explanation: str,
     base_size: Tuple[int, int] = (300, 300),
     legend: Optional[str] = '',
 ) -> list:
@@ -119,7 +122,7 @@ def smiles_to_acs1996_png(
         height = h
     
     # Store the PNG as a resource
-    resource_id = _store_resource(png_bytes, "png")
+    resource_id = _store_resource(png_bytes, project_manifest_path, filename, explanation, "png")
     path = str(DATA_ROOT / f"{resource_id}")
     img = Image(data=png_bytes, format="png")
     
@@ -134,6 +137,9 @@ def smiles_to_acs1996_png(
 @loggable
 def smiles_grid_to_acs1996_png(
     smiles_list: list[str],
+    project_manifest_path: str,
+    filename: str,
+    explanation: str,
     legends: Optional[list[str]] = None,
     mols_per_row: int = 4,
     sub_img_size: Tuple[int, int] = (250, 200),
@@ -259,7 +265,7 @@ def smiles_grid_to_acs1996_png(
         height = h
     
     # Store the PNG as a resource
-    resource_id = _store_resource(png_bytes, "png")
+    resource_id = _store_resource(png_bytes, project_manifest_path, filename, explanation, "png")
     path = str(DATA_ROOT / f"{resource_id}")
     img = Image(data=png_bytes, format="png")
     

@@ -39,7 +39,7 @@ def list_rdkit_descriptors() -> list[dict]:
 
 
 @loggable
-def calculate_descriptors(resource_id: str, smiles_column: str, descriptor_names: list[str]) -> dict:
+def calculate_descriptors(resource_id: str, smiles_column: str, descriptor_names: list[str], project_manifest_path: str, filename: str, explanation: str) -> dict:
     """
     Calculate RDKit molecular descriptors for molecules in a dataset.
     
@@ -69,6 +69,12 @@ def calculate_descriptors(resource_id: str, smiles_column: str, descriptor_names
     descriptor_names : list[str]
         List of RDKit descriptor names to calculate.
         Use list_rdkit_descriptors() to see all 210+ available descriptor names.
+    project_manifest_path : str
+        Path to the project manifest file for tracking this resource.
+    filename : str
+        Base filename for the stored resource (without extension).
+    explanation : str
+        Brief description of what descriptors were calculated.
     
     Returns
     -------
@@ -138,7 +144,7 @@ def calculate_descriptors(resource_id: str, smiles_column: str, descriptor_names
         df[desc_name] = values
     
     # Store the updated dataset
-    new_resource_id = _store_resource(df, 'csv')
+    new_resource_id = _store_resource(df, project_manifest_path, filename, explanation, 'csv')
     
     return {
         "resource_id": new_resource_id,

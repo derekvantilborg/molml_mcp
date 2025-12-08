@@ -10,7 +10,7 @@ from molml_mcp.infrastructure.logging import loggable
 
 
 @loggable
-def store_csv_as_dataset(file_path: str) -> dict:
+def store_csv_as_dataset(file_path: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
     """
     Store a CSV file from a local file path provided by the MCP client.
     
@@ -23,6 +23,12 @@ def store_csv_as_dataset(file_path: str) -> dict:
     file_path : str
         Path to a CSV file supplied by the client (e.g. from a drag-and-drop
         upload). The file is read exactly as provided.
+    project_manifest_path : str
+        Path to the project manifest file for tracking this resource.
+    filename : str
+        Base filename for the stored resource (without extension).
+    explanation : str
+        Brief description of what this dataset contains.
 
     Returns
     -------
@@ -44,7 +50,7 @@ def store_csv_as_dataset(file_path: str) -> dict:
 
     df = pd.read_csv(file_path)
 
-    rid = _store_resource(df, "csv")
+    rid = _store_resource(df, project_manifest_path, filename, explanation, "csv")
 
     return {
         "resource_id": rid,
@@ -55,7 +61,7 @@ def store_csv_as_dataset(file_path: str) -> dict:
 
 
 @loggable
-def store_csv_as_dataset_from_text(csv_content: str) -> dict:
+def store_csv_as_dataset_from_text(csv_content: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
     """
     Store CSV data from content provided by the MCP client.
     
@@ -63,8 +69,12 @@ def store_csv_as_dataset_from_text(csv_content: str) -> dict:
     ----------
     csv_content : str
         The actual CSV file content as a string. We will use StringIO, so the content should be formatted as a valid CSV.
+    project_manifest_path : str
+        Path to the project manifest file for tracking this resource.
     filename : str
-        Optional filename for reference/logging
+        Base filename for the stored resource (without extension).
+    explanation : str
+        Brief description of what this dataset contains.
     
     Returns
     -------
@@ -77,7 +87,7 @@ def store_csv_as_dataset_from_text(csv_content: str) -> dict:
     # Read CSV from string content
     df = pd.read_csv(StringIO(csv_content))
     
-    rid = _store_resource(df, "csv")
+    rid = _store_resource(df, project_manifest_path, filename, explanation, "csv")
     
     return {
         "resource_id": rid,
@@ -499,7 +509,7 @@ def inspect_dataset_rows(resource_id: str, row_indices: list[int] | None = None,
 
 
 @loggable
-def drop_from_dataset(resource_id: str, column_name: str, condition: str) -> dict:
+def drop_from_dataset(resource_id: str, column_name: str, condition: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
     """
     Drop rows from a dataset based on SIMPLE conditions (exact match or null check).
     
@@ -528,6 +538,12 @@ def drop_from_dataset(resource_id: str, column_name: str, condition: str) -> dic
         - ❌ '== "Passed"' → ✅ "Passed"
         - ❌ "== Failed" → ✅ "Failed"
         - ❌ 'is None' (with quotes around None) → ✅ "is None" (literal string)
+    project_manifest_path : str
+        Path to the project manifest file for tracking this resource.
+    filename : str
+        Base filename for the stored resource (without extension).
+    explanation : str
+        Brief description of what filtering was applied.
 
     Returns
     -------
@@ -572,7 +588,7 @@ def drop_from_dataset(resource_id: str, column_name: str, condition: str) -> dic
     else:
         df_cleaned = df[df[column_name] != condition]
 
-    new_resource_id = _store_resource(df_cleaned, 'csv')
+    new_resource_id = _store_resource(df_cleaned, project_manifest_path, filename, explanation, 'csv')
     return {
         "resource_id": new_resource_id,
         "n_rows": len(df_cleaned),
@@ -582,7 +598,7 @@ def drop_from_dataset(resource_id: str, column_name: str, condition: str) -> dic
 
 
 @loggable
-def keep_from_dataset(resource_id: str, column_name: str, condition: str) -> dict:
+def keep_from_dataset(resource_id: str, column_name: str, condition: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
     """
     Keep only rows from a dataset based on SIMPLE conditions (exact match or null check).
     
@@ -611,6 +627,12 @@ def keep_from_dataset(resource_id: str, column_name: str, condition: str) -> dic
         - ❌ '== "Passed"' → ✅ "Passed"
         - ❌ "== active" → ✅ "active"
         - ❌ 'is None' (with quotes around None) → ✅ "is None" (literal string)
+    project_manifest_path : str
+        Path to the project manifest file for tracking this resource.
+    filename : str
+        Base filename for the stored resource (without extension).
+    explanation : str
+        Brief description of what filtering was applied.
 
     Returns
     -------
@@ -655,7 +677,7 @@ def keep_from_dataset(resource_id: str, column_name: str, condition: str) -> dic
     else:
         df_filtered = df[df[column_name] == condition]
 
-    new_resource_id = _store_resource(df_filtered, 'csv')
+    new_resource_id = _store_resource(df_filtered, project_manifest_path, filename, explanation, 'csv')
     return {
         "resource_id": new_resource_id,
         "n_rows": len(df_filtered),
@@ -665,7 +687,7 @@ def keep_from_dataset(resource_id: str, column_name: str, condition: str) -> dic
 
 
 @loggable
-def deduplicate_molecules_dataset(resource_id: str, molecule_id_column: str) -> dict:
+def deduplicate_molecules_dataset(resource_id: str, molecule_id_column: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
     """
     Remove duplicate entries from a dataset based on a specified molecule identifier column. This should be a unique identifier for each molecule.
 
@@ -675,6 +697,12 @@ def deduplicate_molecules_dataset(resource_id: str, molecule_id_column: str) -> 
         Identifier for the tabular dataset resource.
     molecule_id_column : str
         Name of the column containing unique molecule identifiers.
+    project_manifest_path : str
+        Path to the project manifest file for tracking this resource.
+    filename : str
+        Base filename for the stored resource (without extension).
+    explanation : str
+        Brief description of the deduplication performed.
 
     Returns
     -------
@@ -691,7 +719,7 @@ def deduplicate_molecules_dataset(resource_id: str, molecule_id_column: str) -> 
 
     df_deduplicated = df.drop_duplicates(subset=[molecule_id_column])
 
-    new_resource_id = _store_resource(df_deduplicated, 'csv')
+    new_resource_id = _store_resource(df_deduplicated, project_manifest_path, filename, explanation, 'csv')
     return {
         "resource_id": new_resource_id,
         "n_rows_before": n_rows_before,
@@ -702,7 +730,7 @@ def deduplicate_molecules_dataset(resource_id: str, molecule_id_column: str) -> 
 
 
 @loggable
-def drop_duplicate_rows(resource_id: str, subset_columns: list[str] | None = None) -> dict:
+def drop_duplicate_rows(resource_id: str, subset_columns: list[str] | None, project_manifest_path: str, filename: str, explanation: str) -> dict:
     """
     Remove duplicate rows from a dataset based on specified subset of columns.
 
@@ -713,6 +741,12 @@ def drop_duplicate_rows(resource_id: str, subset_columns: list[str] | None = Non
     subset_columns : list[str] | None
         List of column names to consider for identifying duplicates.
         If None, all columns are used to identify duplicates.
+    project_manifest_path : str
+        Path to the project manifest file for tracking this resource.
+    filename : str
+        Base filename for the stored resource (without extension).
+    explanation : str
+        Brief description of the deduplication performed.
 
     Returns
     -------
@@ -731,7 +765,7 @@ def drop_duplicate_rows(resource_id: str, subset_columns: list[str] | None = Non
 
     df_deduplicated = df.drop_duplicates(subset=subset_columns)
 
-    new_resource_id = _store_resource(df_deduplicated, 'csv')
+    new_resource_id = _store_resource(df_deduplicated, project_manifest_path, filename, explanation, 'csv')
     return {
         "resource_id": new_resource_id,
         "n_rows_before": n_rows_before,
@@ -742,7 +776,7 @@ def drop_duplicate_rows(resource_id: str, subset_columns: list[str] | None = Non
 
 
 @loggable
-def drop_empty_rows(resource_id: str) -> dict:
+def drop_empty_rows(resource_id: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
     """
     Remove rows from a dataset that are completely empty (all columns are null).
 
@@ -750,6 +784,12 @@ def drop_empty_rows(resource_id: str) -> dict:
     ----------
     resource_id : str
         Identifier for the tabular dataset resource.
+    project_manifest_path : str
+        Path to the project manifest file for tracking this resource.
+    filename : str
+        Base filename for the stored resource (without extension).
+    explanation : str
+        Brief description of the cleaning performed.
 
     Returns
     -------
@@ -763,7 +803,7 @@ def drop_empty_rows(resource_id: str) -> dict:
 
     df_non_empty = df.dropna(how='all')
 
-    new_resource_id = _store_resource(df_non_empty, 'csv')
+    new_resource_id = _store_resource(df_non_empty, project_manifest_path, filename, explanation, 'csv')
     return {
         "resource_id": new_resource_id,
         "n_rows_before": n_rows_before,
