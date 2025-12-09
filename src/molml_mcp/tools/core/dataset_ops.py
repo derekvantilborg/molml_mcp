@@ -1281,9 +1281,9 @@ def inspect_duplicates_dataset(
             avg_range = conflict_stats.get("avg_range", 0)
             
             # Check if values are unreliable (high CV suggests high uncertainty)
-            high_variability = avg_cv > 0.5  # CV > 50% is very high
-            extreme_range = max_range > avg_range * 3 if avg_range > 0 else False  # Outlier detection
-            very_high_conflict_rate = label_analysis["conflict_rate"] > 80
+            high_variability = bool(avg_cv > 0.5)  # CV > 50% is very high
+            extreme_range = bool(max_range > avg_range * 3) if avg_range > 0 else False  # Outlier detection
+            very_high_conflict_rate = bool(label_analysis["conflict_rate"] > 80)
             
             # Only recommend drop if variability is truly problematic
             should_drop = high_variability or extreme_range or very_high_conflict_rate
@@ -1291,12 +1291,12 @@ def inspect_duplicates_dataset(
             strategies.append({
                 "strategy": "mean",
                 "description": "Average all values (good for measurements with random error)",
-                "recommended": avg_cv < 0.2 and not should_drop
+                "recommended": bool(avg_cv < 0.2 and not should_drop)
             })
             strategies.append({
                 "strategy": "median", 
                 "description": "Take median value (robust to outliers)",
-                "recommended": 0.2 <= avg_cv < 0.5 and not should_drop
+                "recommended": bool(0.2 <= avg_cv < 0.5 and not should_drop)
             })
             strategies.append({
                 "strategy": "first",
@@ -1333,7 +1333,7 @@ def inspect_duplicates_dataset(
                 strategies.append({
                     "strategy": "drop",
                     "description": "Remove all conflicting duplicates (conservative approach)",
-                    "recommended": label_analysis["conflict_rate"] > 30
+                    "recommended": bool(label_analysis["conflict_rate"] > 30)
                 })
         
         result["merge_strategies"] = strategies
@@ -1371,15 +1371,16 @@ def inspect_duplicates_dataset(
                             "std": round(float(vals.std()), 3),
                             "min": round(float(vals.min()), 3),
                             "max": round(float(vals.max()), 3),
-                            "has_conflict": len(vals.unique()) > 1 and (vals.std() / vals.abs().mean() > 0.01 if vals.abs().mean() != 0 else vals.std() > 0)
+                            "has_conflict": bool(len(vals.unique()) > 1 and (vals.std() / vals.abs().mean() > 0.01 if vals.abs().mean() != 0 else vals.std() > 0))
                         }
                     else:
                         unique_vals = vals.unique()
+                        mode_val = vals.mode()[0] if len(vals.mode()) > 0 else None
                         entry["label_stats"] = {
                             "unique_values": unique_vals.tolist(),
-                            "n_unique": len(unique_vals),
-                            "has_conflict": len(unique_vals) > 1,
-                            "most_common": vals.mode()[0] if len(vals.mode()) > 0 else None
+                            "n_unique": int(len(unique_vals)),
+                            "has_conflict": bool(len(unique_vals) > 1),
+                            "most_common": str(mode_val) if mode_val is not None else None
                         }
 
             preview.append(entry)
