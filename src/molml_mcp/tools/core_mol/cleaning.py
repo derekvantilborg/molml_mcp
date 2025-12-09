@@ -365,7 +365,7 @@ After running the full protocol:
 
 For deduplication, use the final SMILES column to identify duplicates. It is 
 recommended to inspect_duplicates_dataset after standardization to make informed
-decisions on handling duplicates.
+decisions on handling duplicates before actually deduplicating.
 
 ================================================================================
 END OF PROTOCOL
