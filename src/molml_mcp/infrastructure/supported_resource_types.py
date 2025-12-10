@@ -8,6 +8,7 @@ TYPE_REGISTRY: dict[str, dict[str, Any]] = {}
 # model
 # json
 # png
+# joblib
 
 
 
@@ -74,9 +75,26 @@ def _load_png(path: Path) -> bytes:
     """Load PNG image bytes from file."""
     with open(path, "rb") as f:
         return f.read()
-
+    
 TYPE_REGISTRY["png"] = {
     "ext": ".png",
     "save": _save_png,
     "load": _load_png,
+}
+    
+
+def _save_joblib(obj, path: Path):
+    """Save object using joblib."""
+    import joblib
+    joblib.dump(obj, path, compress=3)
+
+def _load_joblib(path: Path):
+    """Load object using joblib."""
+    import joblib
+    return joblib.load(path)
+
+TYPE_REGISTRY["joblib"] = {
+    "ext": ".joblib",
+    "save": _save_joblib,
+    "load": _load_joblib,
 }
