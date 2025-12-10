@@ -39,7 +39,7 @@ def list_rdkit_descriptors() -> list[dict]:
 
 
 @loggable
-def calculate_descriptors(input_filename: str, smiles_column: str, descriptor_names: list[str], project_manifest_path: str, output_filename: str, explanation: str) -> dict:
+def calculate_simple_descriptors(input_filename: str, smiles_column: str, descriptor_names: list[str], project_manifest_path: str, output_filename: str, explanation: str) -> dict:
     """
     Calculate RDKit molecular descriptors for molecules in a dataset.
     
