@@ -176,14 +176,19 @@ Step 9b (CONDITIONAL): Re-defragmentation After Metal Disconnection
 
 **PHASE 4: CHEMICAL CANONICALIZATION**
 
-Step 10: Tautomer Canonicalization
+Step 10 (OPTIONAL): Tautomer Canonicalization
     Function: canonicalize_tautomers_dataset(input_filename, column_name, project_manifest_path, output_filename)
     Purpose: Standardize keto-enol, imine-enamine, and other tautomeric forms
              to RDKit's canonical tautomer
     Rationale: Tautomers are chemically equivalent and should have identical
                representations for deduplication and ML
+    DEFAULT: Included in standard protocol (most use cases benefit from tautomer standardization)
+    WHEN TO SKIP: When specific tautomeric forms are biologically relevant, or when
+                  stereochemistry preservation is critical (tautomer canonicalization
+                  can remove/change stereochemistry - known RDKit limitation)
+    ARGUMENT: skip_tautomer_canonicalization=False (default) or True
     WARNING: Canonical tautomer may not be the predominant form under specific
-             conditions (pH, solvent)
+             conditions (pH, solvent). Can REMOVE or CHANGE stereochemistry.
     Output: Tautomer-canonicalized AND canonicalized
     Output Column: smiles_after_tautomer_canonicalization
 
@@ -242,18 +247,22 @@ The standard protocol makes the following policy decisions for general-purpose M
    Alternatives: "keep" (SAR studies), "assign" (fill undefined stereocenters)
    
 2. **Isotope Removal**: ENABLED (remove isotope labels)
-   Argument: remove_isotopes=True
-   Alternative: False (keep isotopes for specialized studies)
+   Argument: skip_isotope_removal=False
+   Alternative: True (keep isotopes for specialized studies)
    
-3. **Metal Disconnection**: DISABLED (keep metal complexes intact)
-   Argument: disconnect_metals=False
+3. **Tautomer Canonicalization**: ENABLED (standardize tautomers)
+   Argument: skip_tautomer_canonicalization=False
+   Alternative: True (preserve specific tautomeric forms or protect stereochemistry)
+
+4. **Metal Disconnection**: DISABLED (keep metal complexes intact)
+   Argument: enable_metal_disconnection=False
    Alternative: True (break metal-ligand bonds)
 
-4. **Salt Pattern**: DEFAULT (pharmaceutical salts)
+5. **Salt Pattern**: DEFAULT (pharmaceutical salts)
    Argument: salt_smarts=SMARTS_COMMON_SALTS
    Alternative: Custom SMARTS (only for specialized datasets)
 
-5. **Defragmentation**: ENABLED (keep largest fragment)
+6. **Defragmentation**: ENABLED (keep largest fragment)
    Argument: keep_largest_fragment=True
    Alternative: False (keep all fragments)
 
@@ -264,14 +273,23 @@ USE CASE RECOMMENDATIONS
 **GENERAL ML / QSAR / ADMET Prediction:**
 Use default protocol as-is:
 - stereo_policy="flatten"
-- remove_isotopes=True
-- disconnect_metals=False
+- skip_isotope_removal=False
+- skip_tautomer_canonicalization=False
+- enable_metal_disconnection=False
 
 **Drug Discovery / SAR Studies:**
 Modify stereochemistry policy:
 - stereo_policy="keep"  (enantiomers may have different activities)
-- remove_isotopes=True
-- disconnect_metals=False
+- skip_isotope_removal=False
+- skip_tautomer_canonicalization=False (or True if tautomer forms are activity-relevant)
+- enable_metal_disconnection=False
+
+**Stereochemistry-Critical Analysis:**
+Disable tautomer canonicalization to protect stereochemistry:
+- stereo_policy="keep"
+- skip_isotope_removal=False
+- skip_tautomer_canonicalization=True  (prevents loss of stereochemistry)
+- enable_metal_disconnection=False
 
 **Organometallic Chemistry:**
 Disable metal disconnection and modify salt removal:
@@ -2764,6 +2782,7 @@ def default_SMILES_standardization_pipeline(
     smiles: list[str],
     stereo_policy: str = "flatten",
     skip_isotope_removal: bool = False,
+    skip_tautomer_canonicalization: bool = False,
     enable_metal_disconnection: bool = False,
     drop_inorganics: bool = False,
     salt_smarts: str = SMARTS_COMMON_SALTS
@@ -2787,14 +2806,19 @@ def default_SMILES_standardization_pipeline(
         - "flatten": Remove all stereochemistry (general ML use case)
         - "keep": Preserve existing stereochemistry (SAR/drug discovery)
         - "assign": Enumerate and assign undefined stereocenters
-    remove_isotopes : bool, optional
-        Whether to remove isotope labels (default: True).
-        Set to False for radiolabeling/NMR/mass spec studies.
-    disconnect_metals : bool, optional
+    skip_isotope_removal : bool, optional
+        Whether to skip removing isotope labels (default: False).
+        Set to True for radiolabeling/NMR/mass spec studies.
+    skip_tautomer_canonicalization : bool, optional
+        Whether to skip tautomer canonicalization (default: False).
+        Set to True when specific tautomeric forms are important or to
+        protect stereochemistry (tautomer canonicalization can remove/change
+        stereochemistry - known RDKit limitation).
+    enable_metal_disconnection : bool, optional
         Whether to disconnect metal-ligand bonds (default: False).
         Set to True for coordination chemistry analysis.
     drop_inorganics : bool, optional
-        When disconnect_metals=True, whether to drop purely inorganic fragments
+        When enable_metal_disconnection=True, whether to drop purely inorganic fragments
         (default: False).
     salt_smarts : str, optional
         SMARTS pattern for salt removal (default: SMARTS_COMMON_SALTS).
@@ -2841,17 +2865,15 @@ def default_SMILES_standardization_pipeline(
     
     Notes
     -----
-    - This function applies ALL 11 steps of the standardization protocol
+    - This function applies 11 steps of the standardization protocol (some optional)
     - Comments are concise and non-redundant (no repeated "Passed" messages)
     - The function chains: canonicalize → remove_salts → remove_solvents → 
       defragment → normalize → reionize → neutralize → [optional: remove_isotopes] → 
-      [optional: disconnect_metals + re-defragment] → canonicalize_tautomers → 
+      [optional: disconnect_metals + re-defragment] → [optional: canonicalize_tautomers] → 
       standardize_stereochemistry → validate
-    - **IMPORTANT**: Step 10 (tautomer canonicalization) can REMOVE or CHANGE 
-      stereochemistry. This is a known RDKit limitation. The pipeline runs stereo 
-      standardization AFTER tautomer canonicalization, but stereochemistry may 
-      already be lost by that point. If stereochemistry preservation is critical, 
-      consider using a custom pipeline that skips tautomer canonicalization.
+    - **IMPORTANT**: Tautomer canonicalization (Step 10) can REMOVE or CHANGE 
+      stereochemistry. This is a known RDKit limitation. If stereochemistry 
+      preservation is critical, set skip_tautomer_canonicalization=True.
     - For detailed step-by-step logging, use the dataset version
     - Output SMILES are fully canonicalized and standardized
     
@@ -2908,8 +2930,7 @@ def default_SMILES_standardization_pipeline(
     
     # Step 8 (OPTIONAL): Isotope removal
     if not skip_isotope_removal:
-        from molml_mcp.tools.core_mol import cleaning
-        current_smiles, step_comments = cleaning.remove_isotopes(current_smiles)
+        current_smiles, step_comments = remove_isotopes(current_smiles)
         for i, comment in enumerate(step_comments):
             if "Failed" in comment and not failure_info[i]:
                 failure_info[i] = f"Isotope removal: {comment}"
@@ -2929,15 +2950,16 @@ def default_SMILES_standardization_pipeline(
             if "Unresolved" in comment and not failure_info[i]:
                 failure_info[i] = f"Re-defragmentation: {comment}"
     
-    # Step 10: Tautomer canonicalization
-    current_smiles, step_comments = canonicalize_tautomers(current_smiles)
-    for i, comment in enumerate(step_comments):
-        if "Failed" in comment and not failure_info[i]:
-            failure_info[i] = f"Tautomer canonicalization: {comment}"
-        # Track stereochemistry warnings (even if processing succeeded)
-        elif "WARNING" in comment and "Stereochemistry" in comment:
-            if not failure_info[i]:  # Only if no prior failure
+    # Step 10 (OPTIONAL): Tautomer canonicalization
+    if not skip_tautomer_canonicalization:
+        current_smiles, step_comments = canonicalize_tautomers(current_smiles)
+        for i, comment in enumerate(step_comments):
+            if "Failed" in comment and not failure_info[i]:
                 failure_info[i] = f"Tautomer canonicalization: {comment}"
+            # Track stereochemistry warnings (even if processing succeeded)
+            elif "WARNING" in comment and "Stereochemistry" in comment:
+                if not failure_info[i]:  # Only if no prior failure
+                    failure_info[i] = f"Tautomer canonicalization: {comment}"
     
     # Step 11: Stereochemistry standardization
     current_smiles, step_comments = standardize_stereochemistry(
@@ -2978,6 +3000,7 @@ def default_SMILES_standardization_pipeline_dataset(
     explanation: str = "Apply default SMILES standardization protocol",
     stereo_policy: str = "flatten",
     skip_isotope_removal: bool = False,
+    skip_tautomer_canonicalization: bool = False,
     enable_metal_disconnection: bool = False,
     drop_inorganics: bool = False,
     salt_smarts: str = SMARTS_COMMON_SALTS
@@ -3038,7 +3061,8 @@ def default_SMILES_standardization_pipeline_dataset(
             Preview of the first 5 rows of the final dataset.
         - protocol_summary : dict
             Summary of the protocol settings used:
-            - stereo_policy, remove_isotopes, disconnect_metals, drop_inorganics
+            - stereo_policy, skip_isotope_removal, skip_tautomer_canonicalization, 
+              enable_metal_disconnection, drop_inorganics
         - final_validation : dict
             Validation statistics (n_valid, n_invalid, validation_rate)
         - note : str
@@ -3098,9 +3122,10 @@ def default_SMILES_standardization_pipeline_dataset(
     - validation_status + validation_comments
     - **standardized_smiles** (final output, copy of last valid step)
     
-    **IMPORTANT**: The tautomer_canonicalization step can REMOVE or CHANGE 
-    stereochemistry. Check the comments_after_tautomer_canonicalization column 
-    for warnings. This is a known RDKit limitation.
+    **IMPORTANT**: The tautomer_canonicalization step (if enabled) can REMOVE 
+    or CHANGE stereochemistry. Check the comments_after_tautomer_canonicalization 
+    column for warnings. This is a known RDKit limitation. To preserve stereochemistry, 
+    set skip_tautomer_canonicalization=True.
     
     The full audit trail allows you to:
     - Track exactly what happened at each step
@@ -3108,6 +3133,8 @@ def default_SMILES_standardization_pipeline_dataset(
     - Debug problematic molecules
     - Understand the complete transformation history
     - **Detect when stereochemistry was lost** during tautomer canonicalization
+
+    It is recommended to find_duplicates_dataset and deduplicate_dataset after standardization 
     
     See Also
     --------
@@ -3209,13 +3236,14 @@ def default_SMILES_standardization_pipeline_dataset(
         current_filename = result["output_filename"]
         current_column = "smiles_after_defragmentation"  # Fixed: use actual output column name
     
-    # Step 10: Tautomer canonicalization
-    result = canonicalize_tautomers_dataset(
-        current_filename, current_column, project_manifest_path,
-        f"{output_filename}_step10_tautomers", "Step 10: Tautomer canonicalization"
-    )
-    current_filename = result["output_filename"]
-    current_column = "smiles_after_tautomer_canonicalization"
+    # Step 10 (OPTIONAL): Tautomer canonicalization
+    if not skip_tautomer_canonicalization:
+        result = canonicalize_tautomers_dataset(
+            current_filename, current_column, project_manifest_path,
+            f"{output_filename}_step10_tautomers", "Step 10: Tautomer canonicalization"
+        )
+        current_filename = result["output_filename"]
+        current_column = "smiles_after_tautomer_canonicalization"
     
     # Step 11: Stereochemistry standardization
     result = standardize_stereochemistry_dataset(
@@ -3254,10 +3282,11 @@ def default_SMILES_standardization_pipeline_dataset(
         "n_rows": len(df_final),
         "columns": list(df_final.columns),
         "preview": df_final.head(5).to_dict(orient="records"),
-        "suggestions": "Check the comments_after_tautomer_canonicalization column for warnings of changes in stereochemistry. After standardization, drop invalid SMILES. In next steps, consider label curation and de-duplication. When working with experimental data, you might want to filter out PAINS molecules too.",
+        "suggestions": "Check the comments_after_tautomer_canonicalization column for warnings of changes in stereochemistry. After standardization, drop invalid SMILES. In next steps, consider label curation and de-duplication using find_duplicates_dataset and deduplicate_dataset. When working with experimental data, you might want to filter out PAINS molecules too.",
         "protocol_summary": {
             "stereo_policy": stereo_policy,
             "skip_isotope_removal": skip_isotope_removal,
+            "skip_tautomer_canonicalization": skip_tautomer_canonicalization,
             "enable_metal_disconnection": enable_metal_disconnection,
             "drop_inorganics": drop_inorganics if enable_metal_disconnection else "N/A",
             "salt_smarts": "default (SMARTS_COMMON_SALTS)" if salt_smarts == SMARTS_COMMON_SALTS else "custom"
@@ -3268,9 +3297,10 @@ def default_SMILES_standardization_pipeline_dataset(
             "validation_rate": validation_rate
         },
         "note": (
-            f"Applied default SMILES standardization protocol with {11 + (0 if skip_isotope_removal else 1) + (2 if enable_metal_disconnection else 0)} steps. "
-            f"Settings: stereo_policy='{stereo_policy}', skip_isotope_removal={skip_isotope_removal}, enable_metal_disconnection={enable_metal_disconnection}. "
+            f"Applied default SMILES standardization protocol with {11 + (0 if skip_isotope_removal else 1) + (0 if skip_tautomer_canonicalization else 1) + (2 if enable_metal_disconnection else 0)} steps. "
+            f"Settings: stereo_policy='{stereo_policy}', skip_isotope_removal={skip_isotope_removal}, skip_tautomer_canonicalization={skip_tautomer_canonicalization}, enable_metal_disconnection={enable_metal_disconnection}. "
             f"Final standardized SMILES are in 'standardized_smiles' column. "
+            f"It is recommended to find_duplicates_dataset and deduplicate_dataset after standardization."
             f"All intermediate steps have dedicated comment columns for full audit trail. "
             f"Validation: {n_valid}/{len(df_final)} molecules passed ({validation_rate:.1f}%)."
         )
