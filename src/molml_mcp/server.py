@@ -91,3 +91,8 @@ mcp.add_tool(compute_similarity_matrix)
 mcp.add_tool(find_k_nearest_neighbors)
 mcp.add_tool(add_similarity_statistics_dataset)
 
+# Add clustering tools
+from molml_mcp.tools.clustering.clust import get_all_clustering_tools
+for tool_func in get_all_clustering_tools():
+    mcp.add_tool(tool_func)
+

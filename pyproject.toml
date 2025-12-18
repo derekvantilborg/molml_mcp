@@ -16,6 +16,7 @@ dependencies = [
     "pandas",
     "cairosvg>=2.8.2",
     "joblib>=1.5.2",
+    "kneed>=0.8.5",
 ]
 
 [tool.setuptools]
