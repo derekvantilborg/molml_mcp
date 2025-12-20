@@ -1,0 +1,21 @@
+def tune_hyperparameters(
+    input_filename: str,
+    feature_columns: List[str],
+    target_column: str,
+    project_manifest_path: str,
+    output_filename: str,
+    explanation: str,
+    model_algorithm: str = "random_forest",
+    param_grid: dict = None,
+    search_strategy: str = "grid",
+    n_searches: int = 50,
+    cv_strategy: str = "stratified",
+    n_folds: int = 5,
+    train_fraction: float = 0.8,
+    scaffold_column: Optional[str] = None,
+    val_dataset: Optional[str] = None,
+    scoring: str = "auto",
+    task_type: str = "auto",
+    random_state: int = 42
+) -> dict:
+    pass
