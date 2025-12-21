@@ -124,9 +124,15 @@ def _train_gradient_boosting_classifier(
 
 
 def _get_logistic_regression_hyperparams() -> Dict[str, Dict[str, Any]]:
-    """Get hyperparameter space for Logistic Regression."""
+    """Get hyperparameter space for Logistic Regression.
+    
+    Note: Penalty and solver combinations have constraints:
+    - lbfgs: supports only l2, none
+    - liblinear: supports l1, l2
+    - saga: supports l1, l2, elasticnet, none
+    """
     return {
-        "penalty": {"type": "categorical", "choices": ["l1", "l2", "elasticnet", "none"], "description": "Regularization type"},
+        "penalty": {"type": "categorical", "choices": ["l2", "none"], "description": "Regularization type (use saga solver for l1/elasticnet)"},
         "C": {"type": "float", "range": [0.001, 100], "log_scale": True, "description": "Inverse of regularization strength"},
         "solver": {"type": "categorical", "choices": ["lbfgs", "liblinear", "saga"], "description": "Optimization algorithm"},
         "max_iter": {"type": "int", "range": [100, 5000], "log_scale": False, "description": "Maximum iterations for convergence"}
@@ -372,10 +378,13 @@ def _train_naive_bayes(
 
 
 def _get_lda_hyperparams() -> Dict[str, Dict[str, Any]]:
-    """Get hyperparameter space for Linear Discriminant Analysis."""
+    """Get hyperparameter space for Linear Discriminant Analysis.
+    
+    Note: Shrinkage only supported with 'lsqr' and 'eigen' solvers, not 'svd'.
+    """
     return {
         "solver": {"type": "categorical", "choices": ["svd", "lsqr", "eigen"], "description": "Solver to use"},
-        "shrinkage": {"type": "float_or_none", "range": [0.0, 1.0], "log_scale": False, "description": "Shrinkage parameter (None for no shrinkage)"}
+        "shrinkage": {"type": "float_or_none", "range": [0.0, 1.0], "log_scale": False, "description": "Shrinkage parameter (only for lsqr/eigen solver, None for svd)"}
     }
 
 
