@@ -197,6 +197,50 @@ def _fn(y_true: np.ndarray, y_pred: np.ndarray, pos_label: int = 1) -> int:
 
 
 # ============================================================================
+# Metric registry
+# ============================================================================
+
+METRIC_REGISTRY = {
+    # Classification metrics
+    "accuracy": _accuracy,
+    "balanced_accuracy": _balanced_accuracy,
+    "precision": _precision,
+    "recall": _recall,
+    "f1_score": _f1_score,
+    "roc_auc": _roc_auc,
+    "matthews_corrcoef": _matthews_corrcoef,
+    "tp": _tp,
+    "fp": _fp,
+    "tn": _tn,
+    "fn": _fn,
+    # Regression metrics
+    "mse": _mse,
+    "rmse": _rmse,
+    "mae": _mae,
+    "r2": _r2,
+}
+
+
+def get_metric_function(metric_name: str):
+    """
+    Get a metric function by name.
+    
+    Args:
+        metric_name: Name of the metric (e.g., "accuracy", "mse")
+    
+    Returns:
+        Metric function that takes (y_true, y_pred) and returns a number
+    
+    Raises:
+        ValueError: If metric name is not recognized
+    """
+    if metric_name not in METRIC_REGISTRY:
+        available = list(METRIC_REGISTRY.keys())
+        raise ValueError(f"Unknown metric '{metric_name}'. Available: {available}")
+    return METRIC_REGISTRY[metric_name]
+
+
+# ============================================================================
 # Dataset-level metric calculation function
 # ============================================================================
 
