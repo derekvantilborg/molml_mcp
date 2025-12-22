@@ -87,6 +87,9 @@ def tune_hyperparameters(
             - output_filename: Filename of stored best hyperparameters (JSON)
             - best_hyperparameters: Dictionary of best hyperparameter values
             - best_score: Best cross-validation score achieved
+            - n_successful: Number of parameter combinations that completed successfully
+            - n_total: Total number of parameter combinations attempted
+            - success_rate: Fraction of successful runs (n_successful / n_total)
     
     Example:
         >>> # Grid search for Random Forest
@@ -155,40 +158,57 @@ def tune_hyperparameters(
     # perform cross-validation for each set of hyperparams and collect results
     cv_results = []
     for params in hyper_params:
-        score = _cross_validate_and_eval(model_algorithm=model_algorithm,
-                                         dataset=train_df,
-                                         smiles_column=smiles_column,
-                                         label_column=target_column,
-                                         feature_vector_dict=feature_vectors_dict,
-                                         cv_strategy=cv_strategy,
-                                         n_folds=n_folds,
-                                         random_state=random_state,
-                                         metric=metric,
-                                         hyperparameters=params,
-                                         cluster_column=cluster_column,
-                                         val_size=val_size,
-                                         scaffold_type=scaffold_type,
-                                         shuffle=shuffle,
-                                         p=p,
-                                         max_splits=max_splits)
+        try:
+            score = _cross_validate_and_eval(model_algorithm=model_algorithm,
+                                             dataset=train_df,
+                                             smiles_column=smiles_column,
+                                             label_column=target_column,
+                                             feature_vector_dict=feature_vectors_dict,
+                                             cv_strategy=cv_strategy,
+                                             n_folds=n_folds,
+                                             random_state=random_state,
+                                             metric=metric,
+                                             hyperparameters=params,
+                                             cluster_column=cluster_column,
+                                             val_size=val_size,
+                                             scaffold_type=scaffold_type,
+                                             shuffle=shuffle,
+                                             p=p,
+                                             max_splits=max_splits)
+            cv_results.append(score)
+        except Exception as e:
+            # If this parameter combination fails, record None and continue
+            print(f"Warning: Parameter combination {params} failed with error: {str(e)[:100]}")
+            cv_results.append(None)
         
-        cv_results.append(score)
-        
-    # get the best hyperparams based on the best score index
+    # Filter out failed runs (None values)
+    valid_results = [(i, score) for i, score in enumerate(cv_results) if score is not None]
+    
+    if not valid_results:
+        raise ValueError("All hyperparameter combinations failed during cross-validation. Check your parameter grid and data.")
+    
+    # get the best hyperparams based on the best score among valid results
     if higher_is_better:
-        best_index = cv_results.index(max(cv_results))
+        best_index, best_score = max(valid_results, key=lambda x: x[1])
     else:
-        best_index = cv_results.index(min(cv_results))
+        best_index, best_score = min(valid_results, key=lambda x: x[1])
 
     best_hyperparams = hyper_params[best_index]
 
     # store the best hyperparams as a json resource
     output_filename = _store_resource(best_hyperparams, project_manifest_path, output_filename, explanation, 'json')
+    
+    # Calculate success rate
+    n_successful = len(valid_results)
+    n_total = len(hyper_params)
         
     return {
         "output_filename": output_filename,
         "best_hyperparameters": best_hyperparams,
-        "best_score": cv_results[best_index],
+        "best_score": best_score,
+        "n_successful": n_successful,
+        "n_total": n_total,
+        "success_rate": n_successful / n_total
     }   
 
 

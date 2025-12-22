@@ -82,11 +82,13 @@ grid_result = tune_hyperparameters(
 print(f"   ✓ Best params file: {grid_result['output_filename']}")
 print(f"   ✓ Best hyperparameters: {grid_result['best_hyperparameters']}")
 print(f"   ✓ Best CV score: {grid_result['best_score']:.4f}")
+print(f"   ✓ Success rate: {grid_result['n_successful']}/{grid_result['n_total']} ({grid_result['success_rate']:.1%})")
 
 # Verify that all combinations were tried (2 * 2 = 4 combinations)
 from sklearn.model_selection import ParameterGrid
 total_combos = len(list(ParameterGrid(param_grid_small)))
 print(f"   ✓ Total parameter combinations: {total_combos}")
+assert grid_result['n_total'] == total_combos, "Should have tried all combinations"
 
 # Step 3: Random search with larger parameter space
 print("\n3. Running random search (sampling from larger space)...")
@@ -116,10 +118,11 @@ random_result = tune_hyperparameters(
 print(f"   ✓ Best params file: {random_result['output_filename']}")
 print(f"   ✓ Best hyperparameters: {random_result['best_hyperparameters']}")
 print(f"   ✓ Best CV score: {random_result['best_score']:.4f}")
+print(f"   ✓ Success rate: {random_result['n_successful']}/{random_result['n_total']} ({random_result['success_rate']:.1%})")
 
 total_combos_large = len(list(ParameterGrid(param_grid_large)))
 print(f"   ✓ Total possible combinations: {total_combos_large}")
-print(f"   ✓ Combinations evaluated: 6 (random sampling)")
+print(f"   ✓ Combinations evaluated: {random_result['n_total']} (random sampling)")
 
 # Step 4: Test reproducibility with same random_state
 print("\n4. Testing reproducibility (same random_state)...")
