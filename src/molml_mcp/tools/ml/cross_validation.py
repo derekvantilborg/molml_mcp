@@ -402,7 +402,12 @@ def _cross_validate_and_eval(
     random_state: int,
     metric: str,
     hyperparameters: dict = None,
-    cluster_column: str = None
+    cluster_column: str = None,
+    val_size: float = None,
+    scaffold_type: str = 'bemis_murcko',
+    shuffle: bool = True,
+    p: int = 1,
+    max_splits: int = None
 ) -> float:
     """
     Internal function for cross validation used in hyperparameter tuning.
@@ -419,6 +424,11 @@ def _cross_validate_and_eval(
         metric: Metric to evaluate (e.g., 'accuracy', 'f1_score', 'mse', 'r2')
         hyperparameters: Dictionary of hyperparameters to pass to the model
         cluster_column: Name of cluster column (required for cluster-based CV)
+        val_size: Validation size fraction (for montecarlo, optional for others)
+        scaffold_type: Type of scaffold for scaffold-based CV ('bemis_murcko', 'generic', 'cyclic_skeleton')
+        shuffle: Whether to shuffle data before splitting
+        p: Number of samples to leave out for leavepout strategy
+        max_splits: Maximum number of splits for leavepout strategy
     
     Returns:
         Average metric value across all folds
@@ -457,11 +467,11 @@ def _cross_validate_and_eval(
         random_state=random_state,
         labels=labels,
         clusters=clusters,
-        val_size=None,  # Will use default 1.0/n_folds or 0.2 for montecarlo
-        scaffold_type='bemis_murcko',
-        shuffle=True,
-        p=1,  # Leave-one-out by default for leavepout strategy
-        max_splits=n_folds  # Limit leavepout to n_folds
+        val_size=val_size,
+        scaffold_type=scaffold_type,
+        shuffle=shuffle,
+        p=p,
+        max_splits=max_splits
     )
     
     # Evaluate on each fold
