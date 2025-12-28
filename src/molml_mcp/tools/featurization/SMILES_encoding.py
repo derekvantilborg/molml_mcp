@@ -11,7 +11,7 @@ def get_all_smiles_encoding_tools():
         inspect_vocab_json,
         smiles_to_indices,
         batch_smiles_to_one_hot,
-        check_dataset_vocab_coverage,
+        flag_smiles_vocab_fit,
     ]
 
 import re
@@ -914,7 +914,7 @@ def _check_smiles_vocab_coverage(
     return result
 
 
-def check_dataset_vocab_coverage(
+def flag_smiles_vocab_fit(
     input_filename: str,
     project_manifest_path: str,
     smiles_column: str,
@@ -923,10 +923,10 @@ def check_dataset_vocab_coverage(
     allow_unknown: bool = True,
     inplace: bool = False,
     output_filename: Optional[str] = None,
-    explanation: str = "Dataset with vocab coverage column"
+    explanation: str = "Dataset with vocab fit flags"
 ) -> Dict:
     """
-    Check vocabulary coverage across all SMILES in a dataset.
+    Flag SMILES in dataset based on whether they fit in the vocabulary.
     
     MCP-friendly version that loads vocab from JSON resource and optionally
     adds a boolean coverage column to the dataset.
@@ -955,7 +955,7 @@ def check_dataset_vocab_coverage(
             
     Example:
         >>> # Strict mode: fail if any unknown tokens
-        >>> result = check_dataset_vocab_coverage(
+        >>> result = flag_smiles_vocab_fit(
         ...     "molecules.csv",
         ...     "manifest.json",
         ...     "SMILES",
@@ -965,7 +965,7 @@ def check_dataset_vocab_coverage(
         ...     output_filename="molecules_strict"
         ... )
         >>> # Lenient mode: pass if vocab has <unk> token
-        >>> result = check_dataset_vocab_coverage(
+        >>> result = flag_smiles_vocab_fit(
         ...     "molecules.csv",
         ...     "manifest.json",
         ...     "SMILES",
