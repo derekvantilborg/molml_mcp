@@ -1,6 +1,8 @@
 """
 Statistical tests for dataset analysis.
 
+All tests include appropriate effect size metrics:
+
 Normality Tests:
 - Shapiro-Wilk test: checks if data is normally distributed (best for small to medium samples)
 - Kolmogorov-Smirnov test: alternative normality test (good for larger samples)
@@ -15,13 +17,16 @@ Correlation Tests:
 - Spearman correlation: measures monotonic correlation (rank-based, non-parametric)
 
 Independent Sample Tests:
-- Independent t-test (Welch's): compares means of two independent samples
-- Mann-Whitney U test: non-parametric alternative to independent t-test
+- Independent t-test (Welch's): compares means of two independent samples [Cohen's d effect size]
+- Mann-Whitney U test: non-parametric alternative to independent t-test [Cliff's delta effect size]
 - Kolmogorov-Smirnov test: compares distributions of two independent samples
 
 Multi-Group Tests:
-- One-way ANOVA: compares means across multiple groups (assumes normality)
-- Kruskal-Wallis test: non-parametric alternative to one-way ANOVA
+- One-way ANOVA: compares means across multiple groups (assumes normality) [eta-squared effect size]
+- Kruskal-Wallis test: non-parametric alternative to one-way ANOVA [epsilon-squared effect size]
+
+Categorical Tests:
+- Chi-square test of independence: tests association between categorical variables [Cramér's V effect size]
 """
 
 import pandas as pd
@@ -1036,6 +1041,21 @@ def test_independent_ttest(
     std_a = float(np.std(data_a, ddof=1))
     std_b = float(np.std(data_b, ddof=1))
     
+    # Calculate Cohen's d (pooled standard deviation version)
+    pooled_std = np.sqrt(((n_a - 1) * std_a**2 + (n_b - 1) * std_b**2) / (n_a + n_b - 2))
+    cohens_d = (mean_a - mean_b) / pooled_std if pooled_std > 0 else 0.0
+    
+    # Interpret Cohen's d
+    abs_d = abs(cohens_d)
+    if abs_d < 0.2:
+        effect_size_interp = "negligible"
+    elif abs_d < 0.5:
+        effect_size_interp = "small"
+    elif abs_d < 0.8:
+        effect_size_interp = "medium"
+    else:
+        effect_size_interp = "large"
+    
     # Perform Welch's t-test (equal_var=False)
     statistic, p_value = stats.ttest_ind(data_a, data_b, equal_var=False, alternative=alternative)
     
@@ -1095,8 +1115,10 @@ def test_independent_ttest(
         "mean_b": mean_b,
         "std_a": std_a,
         "std_b": std_b,
+        "cohens_d": float(cohens_d),
+        "effect_size": effect_size_interp,
         "interpretation": interpretation,
-        "summary": f"Welch's t-test: t={statistic:.4f}, p={p_value:.4f}, significant={is_significant}"
+        "summary": f"Welch's t-test: t={statistic:.4f}, p={p_value:.4f}, d={cohens_d:.4f} ({effect_size_interp}), significant={is_significant}"
     }
 
 
@@ -1189,6 +1211,23 @@ def test_mann_whitney_u(
     median_a = float(np.median(data_a))
     median_b = float(np.median(data_b))
     
+    # Calculate Cliff's delta (non-parametric effect size)
+    # Counts pairs where A > B minus pairs where A < B, divided by total pairs
+    n_greater = sum(a > b for a in data_a for b in data_b)
+    n_less = sum(a < b for a in data_a for b in data_b)
+    cliffs_delta = (n_greater - n_less) / (n_a * n_b)
+    
+    # Interpret Cliff's delta
+    abs_delta = abs(cliffs_delta)
+    if abs_delta < 0.147:
+        effect_size_interp = "negligible"
+    elif abs_delta < 0.33:
+        effect_size_interp = "small"
+    elif abs_delta < 0.474:
+        effect_size_interp = "medium"
+    else:
+        effect_size_interp = "large"
+    
     # Perform Mann-Whitney U test
     result = stats.mannwhitneyu(data_a, data_b, alternative=alternative)
     statistic = result.statistic
@@ -1248,8 +1287,10 @@ def test_mann_whitney_u(
         "n_b": n_b,
         "median_a": median_a,
         "median_b": median_b,
+        "cliffs_delta": float(cliffs_delta),
+        "effect_size": effect_size_interp,
         "interpretation": interpretation,
-        "summary": f"Mann-Whitney U={statistic:.4f}, p={p_value:.4f}, significant={is_significant}"
+        "summary": f"Mann-Whitney U={statistic:.4f}, p={p_value:.4f}, δ={cliffs_delta:.4f} ({effect_size_interp}), significant={is_significant}"
     }
 
 
@@ -1471,6 +1512,23 @@ def test_one_way_anova(
     # Perform one-way ANOVA
     statistic, p_value = stats.f_oneway(*groups)
     
+    # Calculate eta-squared (η²) - effect size for ANOVA
+    # η² = SS_between / SS_total
+    grand_mean = np.mean(np.concatenate(groups))
+    ss_between = sum(len(group) * (np.mean(group) - grand_mean)**2 for group in groups)
+    ss_total = sum((x - grand_mean)**2 for group in groups for x in group)
+    eta_squared = ss_between / ss_total if ss_total > 0 else 0.0
+    
+    # Interpret eta-squared
+    if eta_squared < 0.01:
+        effect_size_interp = "negligible"
+    elif eta_squared < 0.06:
+        effect_size_interp = "small"
+    elif eta_squared < 0.14:
+        effect_size_interp = "medium"
+    else:
+        effect_size_interp = "large"
+    
     # Interpret result
     is_significant = p_value <= alpha
     n_groups = len(groups)
@@ -1500,8 +1558,10 @@ def test_one_way_anova(
         "group_sizes": group_sizes,
         "group_means": group_means,
         "group_stds": group_stds,
+        "eta_squared": float(eta_squared),
+        "effect_size": effect_size_interp,
         "interpretation": interpretation,
-        "summary": f"ANOVA: F={statistic:.4f}, p={p_value:.4f}, {n_groups} groups, significant={is_significant}"
+        "summary": f"ANOVA: F={statistic:.4f}, p={p_value:.4f}, η²={eta_squared:.4f} ({effect_size_interp}), {n_groups} groups, significant={is_significant}"
     }
 
 
@@ -1579,6 +1639,21 @@ def test_kruskal_wallis(
     # Perform Kruskal-Wallis test
     statistic, p_value = stats.kruskal(*groups)
     
+    # Calculate epsilon-squared (ε²) - non-parametric effect size for Kruskal-Wallis
+    # ε² = H / (n² - 1) / (n + 1) where H is the K-W statistic
+    n_total = sum(group_sizes)
+    epsilon_squared = statistic / ((n_total**2 - 1) / (n_total + 1))
+    
+    # Interpret epsilon-squared (similar thresholds to eta-squared)
+    if epsilon_squared < 0.01:
+        effect_size_interp = "negligible"
+    elif epsilon_squared < 0.06:
+        effect_size_interp = "small"
+    elif epsilon_squared < 0.14:
+        effect_size_interp = "medium"
+    else:
+        effect_size_interp = "large"
+    
     # Interpret result
     is_significant = p_value <= alpha
     n_groups = len(groups)
@@ -1607,8 +1682,147 @@ def test_kruskal_wallis(
         "n_groups": n_groups,
         "group_sizes": group_sizes,
         "group_medians": group_medians,
+        "epsilon_squared": float(epsilon_squared),
+        "effect_size": effect_size_interp,
         "interpretation": interpretation,
-        "summary": f"Kruskal-Wallis: H={statistic:.4f}, p={p_value:.4f}, {n_groups} groups, significant={is_significant}"
+        "summary": f"Kruskal-Wallis: H={statistic:.4f}, p={p_value:.4f}, ε²={epsilon_squared:.4f} ({effect_size_interp}), {n_groups} groups, significant={is_significant}"
+    }
+
+
+def test_chi_square(
+    input_filename: str,
+    project_manifest_path: str,
+    column_a: str,
+    column_b: str,
+    alpha: float = 0.05
+) -> Dict:
+    """
+    Perform chi-square test of independence for categorical variables.
+    
+    The chi-square test assesses whether two categorical variables are independent
+    or associated. It compares observed frequencies with expected frequencies under
+    the assumption of independence.
+    
+    Null hypothesis (H0): The two variables are independent.
+    - p-value > alpha: Fail to reject H0 (variables are independent)
+    - p-value <= alpha: Reject H0 (variables are associated)
+    
+    Args:
+        input_filename: CSV dataset resource filename
+        project_manifest_path: Path to project manifest.json
+        column_a: First categorical column name
+        column_b: Second categorical column name
+        alpha: Significance level (default: 0.05)
+        
+    Returns:
+        Dictionary containing:
+            - statistic: Chi-square statistic
+            - p_value: p-value from the test
+            - degrees_of_freedom: Degrees of freedom
+            - alpha: Significance level used
+            - is_significant: Boolean indicating if association is significant
+            - cramers_v: Cramér's V effect size
+            - effect_size: Qualitative effect size interpretation
+            - contingency_table: Observed frequencies as nested dict
+            - interpretation: Human-readable interpretation
+            
+    Example:
+        >>> result = test_chi_square(
+        ...     "dataset.csv",
+        ...     "manifest.json",
+        ...     "treatment_group",
+        ...     "outcome"
+        ... )
+    """
+    # Load dataset
+    df = _load_resource(project_manifest_path, input_filename)
+    
+    # Validate columns
+    if column_a not in df.columns:
+        raise ValueError(
+            f"Column '{column_a}' not found. "
+            f"Available: {list(df.columns)}"
+        )
+    if column_b not in df.columns:
+        raise ValueError(
+            f"Column '{column_b}' not found. "
+            f"Available: {list(df.columns)}"
+        )
+    
+    # Remove rows with NaN in either column
+    df_clean = df[[column_a, column_b]].dropna()
+    
+    if len(df_clean) == 0:
+        raise ValueError("No valid data after removing NaN values")
+    
+    # Create contingency table
+    contingency_table = pd.crosstab(df_clean[column_a], df_clean[column_b])
+    
+    if contingency_table.shape[0] < 2 or contingency_table.shape[1] < 2:
+        raise ValueError(
+            f"Need at least 2 categories in each variable. "
+            f"Got {contingency_table.shape[0]} x {contingency_table.shape[1]}"
+        )
+    
+    # Perform chi-square test
+    chi2_result = stats.chi2_contingency(contingency_table)
+    statistic = chi2_result[0]
+    p_value = chi2_result[1]
+    dof = chi2_result[2]
+    
+    # Calculate Cramér's V (effect size for chi-square)
+    n = contingency_table.sum().sum()
+    min_dim = min(contingency_table.shape[0] - 1, contingency_table.shape[1] - 1)
+    cramers_v = np.sqrt(statistic / (n * min_dim))
+    
+    # Interpret Cramér's V
+    if cramers_v < 0.1:
+        effect_size_interp = "negligible"
+    elif cramers_v < 0.3:
+        effect_size_interp = "small"
+    elif cramers_v < 0.5:
+        effect_size_interp = "medium"
+    else:
+        effect_size_interp = "large"
+    
+    # Interpret result
+    is_significant = p_value <= alpha
+    
+    if is_significant:
+        interpretation = (
+            f"Significant association detected (\u03c7\u00b2={statistic:.4f}, p={p_value:.4f} \u2264 \u03b1={alpha}). "
+            f"The variables '{column_a}' and '{column_b}' are NOT independent. "
+            f"Cramér's V={cramers_v:.4f} ({effect_size_interp} effect)."
+        )
+    else:
+        interpretation = (
+            f"No significant association (\u03c7\u00b2={statistic:.4f}, p={p_value:.4f} > \u03b1={alpha}). "
+            f"The variables '{column_a}' and '{column_b}' appear independent. "
+            f"Cramér's V={cramers_v:.4f} ({effect_size_interp} effect)."
+        )
+    
+    # Convert contingency table to nested dict for JSON serialization
+    contingency_dict = {
+        str(idx): {str(col): int(val) for col, val in row.items()}
+        for idx, row in contingency_table.to_dict('index').items()
+    }
+    
+    return {
+        "test": "Chi-square test of independence",
+        "dataset": input_filename,
+        "column_a": column_a,
+        "column_b": column_b,
+        "statistic": float(statistic),
+        "p_value": float(p_value),
+        "degrees_of_freedom": int(dof),
+        "alpha": alpha,
+        "is_significant": is_significant,
+        "n_samples": int(n),
+        "cramers_v": float(cramers_v),
+        "effect_size": effect_size_interp,
+        "contingency_table": contingency_dict,
+        "interpretation": interpretation,
+        "summary": f"Chi-square: \u03c7\u00b2={statistic:.4f}, p={p_value:.4f}, V={cramers_v:.4f} ({effect_size_interp}), significant={is_significant}"
     }
 
 
@@ -1622,6 +1836,7 @@ def get_all_statistical_test_tools():
     - Correlation tests: Pearson, Spearman
     - Independent sample tests: Independent t-test (Welch's), Mann-Whitney U, Two-sample K-S
     - Multi-group tests: One-way ANOVA, Kruskal-Wallis
+    - Categorical tests: Chi-square test of independence
     """
     return [
         # Normality tests
@@ -1641,4 +1856,6 @@ def get_all_statistical_test_tools():
         # Multi-group tests
         test_one_way_anova,
         test_kruskal_wallis,
+        # Categorical tests
+        test_chi_square,
     ]
