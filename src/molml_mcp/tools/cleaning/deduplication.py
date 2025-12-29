@@ -225,13 +225,13 @@ def find_duplicates_dataset(
     from collections import Counter
     reason_summary = dict(Counter(reason_counts))
     
-    # Return summary
+    # Return summary (convert numpy types to native Python for JSON serialization)
     return {
         "output_filename": output_id,
-        "n_rows": len(df_annotated),
-        "n_unique": strategy_counts['unique'],
-        "n_duplicate_groups": n_duplicate_groups,
-        "strategy_counts": strategy_counts,
+        "n_rows": int(len(df_annotated)),
+        "n_unique": int(strategy_counts['unique']),
+        "n_duplicate_groups": int(n_duplicate_groups),
+        "strategy_counts": {k: int(v) for k, v in strategy_counts.items()},
         "reason_summary": reason_summary
     }
 
@@ -675,14 +675,14 @@ def deduplicate_dataset(
     if n_nan_labels > 0:
         suggestions.append(f"Found {n_nan_labels} entries with NaN labels - recommend removing these missing values")
     
-    # Return summary
+    # Return summary (convert numpy types to native Python for JSON serialization)
     return {
         "output_filename": output_id,
-        "n_rows_before": n_rows_before,
-        "n_rows_after": n_rows_after,
-        "n_rows_removed": n_rows_removed,
-        "n_nan_smiles": n_nan_smiles,
-        "n_nan_labels": n_nan_labels,
+        "n_rows_before": int(n_rows_before),
+        "n_rows_after": int(n_rows_after),
+        "n_rows_removed": int(n_rows_removed),
+        "n_nan_smiles": int(n_nan_smiles),
+        "n_nan_labels": int(n_nan_labels),
         "suggestions": suggestions,
         "operations_summary": operations_summary,
         "preview": df_deduplicated.head(5).to_dict('records'),
