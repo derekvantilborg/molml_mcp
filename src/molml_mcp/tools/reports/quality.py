@@ -512,11 +512,11 @@ def generate_quality_report(
     # 10. Outlier detection (existing tool)
     outlier_temp_name = f"{output_name}_outliers_temp"
     outlier_result = detect_outliers_iqr(
-        desc_result['output_filename'],
-        project_manifest_path,
-        outlier_temp_name,
-        "Temporary outlier detection",
+        input_filename=desc_result['output_filename'],
+        project_manifest_path=project_manifest_path,
         columns=prop_cols,
+        output_filename=outlier_temp_name,
+        explanation="Temporary outlier detection",
         multiplier=1.5
     )
     
@@ -533,14 +533,14 @@ def generate_quality_report(
     # 12. Scaffold diversity (existing tool)
     scaffold_temp_name = f"{output_name}_scaffold_temp"
     scaffold_result = generate_scaffold_report(
-        input_filename,
-        project_manifest_path,
-        scaffold_temp_name,
-        "Temporary scaffold analysis",
-        smiles_col=smiles_col,
-        activity_col=activity_col if has_activity else None,
-        include_murcko=True,
-        include_generic=False
+        dataset_filename=input_filename,
+        project_manifest_path=project_manifest_path,
+        smiles_column=smiles_col,
+        output_filename=scaffold_temp_name,
+        scaffold_type='bemis_murcko',
+        activity_column=activity_col if has_activity else None,
+        activity_type=activity_type if has_activity else None,
+        explanation="Temporary scaffold analysis for quality report"
     )
     
     # Extract key scaffold metrics
