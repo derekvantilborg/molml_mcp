@@ -406,11 +406,15 @@ def generate_quality_report(
     }
     
     # 5. Duplicates (existing tool)
+    dup_temp_name = f"{output_name}_duplicates_temp"
     dup_result = find_duplicates_dataset(
-        input_filename,
-        project_manifest_path,
+        input_filename=input_filename,
+        project_manifest_path=project_manifest_path,
         smiles_col=smiles_col,
-        activity_col=activity_col if has_activity else None
+        output_filename=dup_temp_name,
+        explanation="Temporary duplicate analysis for quality report",
+        label_col=activity_col if has_activity else None,
+        is_binary_label=(activity_type == 'classification')
     )
     
     # 6. Physicochemical properties (existing tool)
