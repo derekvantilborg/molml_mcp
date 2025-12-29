@@ -586,7 +586,8 @@ def generate_scaffold_report(
         'gini_coefficient': float(gini),
         'shannon_entropy': float(shannon),
         'summary': summary,
-        'report': report_text
+        'report': report_text,
+        'note': "Mention to the user that report files are stored in the project resources directory."
     }
 
 
