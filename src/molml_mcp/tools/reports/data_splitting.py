@@ -1812,3 +1812,281 @@ def _analyze_functional_group_distribution(
         result['summary']['n_unique_to_val'] = n_unique_val
     
     return result
+
+
+# ============================================================================
+# AGGREGATOR FUNCTION
+# ============================================================================
+
+def analyze_split_quality(
+    train_path: str,
+    test_path: str,
+    val_path: Optional[str],
+    project_manifest_path: str,
+    smiles_col: str,
+    label_col: str,
+    output_filename: str,
+    explanation: str = "Data splitting quality analysis report",
+    # Parameters for individual helpers
+    min_split_size: int = 50,
+    imbalance_threshold: float = 0.1,
+    similarity_threshold: float = 0.9,
+    activity_cliff_similarity: float = 0.8,
+    activity_cliff_fold_diff: float = 10.0,
+    alpha: float = 0.05,
+    min_occurrence_threshold: int = 2,
+    max_examples: int = 10
+) -> Dict:
+    """
+    Comprehensive data splitting quality analysis combining all helper functions.
+    
+    Runs all 8 quality checks and combines results into a single comprehensive report:
+    1. Split characteristics (sizes, class balance)
+    2. Exact duplicate detection (CRITICAL if found)
+    3. Similarity-based leakage detection (HIGH severity)
+    4. Scaffold overlap detection (HIGH/MEDIUM/LOW)
+    5. Stereoisomer/tautomer leakage (MEDIUM)
+    6. Property distribution comparison (MEDIUM if biased)
+    7. Activity distribution comparison (MEDIUM if biased)
+    8. Functional group distribution analysis (MEDIUM if biased)
+    
+    Parameters
+    ----------
+    train_path : str
+        Filename of training split resource
+    test_path : str
+        Filename of test split resource
+    val_path : Optional[str]
+        Filename of validation split resource (if exists)
+    project_manifest_path : str
+        Path to manifest.json
+    smiles_col : str
+        Name of SMILES column
+    label_col : str
+        Name of label column
+    output_filename : str
+        Output filename prefix (e.g., "split_quality_report")
+    explanation : str
+        Human-readable description of this analysis
+    min_split_size : int
+        Minimum acceptable split size (default: 50)
+    imbalance_threshold : float
+        Threshold for class imbalance (default: 0.1)
+    similarity_threshold : float
+        Tanimoto similarity threshold for leakage (default: 0.9)
+    activity_cliff_similarity : float
+        Similarity threshold for activity cliffs (default: 0.8)
+    activity_cliff_fold_diff : float
+        Fold difference for regression activity cliffs (default: 10.0)
+    alpha : float
+        Significance level for statistical tests (default: 0.05)
+    min_occurrence_threshold : int
+        Minimum functional group occurrences to flag (default: 2)
+    max_examples : int
+        Maximum examples to include per issue (default: 10)
+        
+    Returns
+    -------
+    Dict with:
+        - output_filename: saved JSON report filename
+        - overall_severity: highest severity found across all checks
+        - severity_summary: count of issues by severity
+        - split_characteristics: basic split info
+        - exact_duplicates: identical molecules across splits
+        - similarity_leakage: highly similar molecules
+        - scaffold_leakage: scaffold overlap
+        - stereoisomer_tautomer_leakage: stereoisomers and tautomers
+        - property_distributions: physicochemical properties
+        - activity_distributions: label/activity distributions
+        - functional_groups: functional group distributions
+        - metadata: analysis parameters and timestamp
+    """
+    import json
+    from datetime import datetime
+    from molml_mcp.infrastructure.resources import _store_resource
+    
+    # Store start time
+    start_time = datetime.now()
+    
+    # Initialize result structure
+    result = {
+        'metadata': {
+            'analysis_type': 'data_splitting_quality',
+            'timestamp': start_time.isoformat(),
+            'train_file': train_path,
+            'test_file': test_path,
+            'val_file': val_path,
+            'smiles_column': smiles_col,
+            'label_column': label_col,
+            'parameters': {
+                'min_split_size': min_split_size,
+                'imbalance_threshold': imbalance_threshold,
+                'similarity_threshold': similarity_threshold,
+                'activity_cliff_similarity': activity_cliff_similarity,
+                'activity_cliff_fold_diff': activity_cliff_fold_diff,
+                'alpha': alpha,
+                'min_occurrence_threshold': min_occurrence_threshold,
+                'max_examples': max_examples
+            }
+        }
+    }
+    
+    # 1. Analyze split characteristics
+    print("Running split characteristics analysis...")
+    result['split_characteristics'] = _analyze_split_characteristics(
+        train_path, test_path, val_path, project_manifest_path,
+        smiles_col, label_col, min_split_size, imbalance_threshold
+    )
+    
+    # 2. Detect exact duplicates (CRITICAL if found)
+    print("Detecting exact duplicates...")
+    result['exact_duplicates'] = _detect_exact_duplicates(
+        train_path, test_path, val_path, project_manifest_path,
+        smiles_col, max_examples
+    )
+    
+    # 3. Detect similarity-based leakage
+    print("Detecting similarity-based leakage...")
+    result['similarity_leakage'] = _detect_similarity_leakage(
+        train_path, test_path, val_path, project_manifest_path,
+        smiles_col, label_col, similarity_threshold,
+        activity_cliff_similarity, activity_cliff_fold_diff, max_examples
+    )
+    
+    # 4. Detect scaffold leakage
+    print("Detecting scaffold overlap...")
+    result['scaffold_leakage'] = _detect_scaffold_leakage(
+        train_path, test_path, val_path, project_manifest_path,
+        smiles_col, max_examples
+    )
+    
+    # 5. Detect stereoisomer/tautomer leakage
+    print("Detecting stereoisomer/tautomer leakage...")
+    result['stereoisomer_tautomer_leakage'] = _detect_stereoisomer_tautomer_leakage(
+        train_path, test_path, val_path, project_manifest_path,
+        smiles_col, max_examples
+    )
+    
+    # 6. Test property distributions
+    print("Testing property distributions...")
+    result['property_distributions'] = _test_property_distributions(
+        train_path, test_path, val_path, project_manifest_path,
+        smiles_col, alpha
+    )
+    
+    # 7. Test activity distributions
+    print("Testing activity distributions...")
+    result['activity_distributions'] = _test_activity_distributions(
+        train_path, test_path, val_path, project_manifest_path,
+        label_col, alpha, imbalance_threshold
+    )
+    
+    # 8. Analyze functional group distribution
+    print("Analyzing functional group distributions...")
+    result['functional_groups'] = _analyze_functional_group_distribution(
+        train_path, test_path, val_path, project_manifest_path,
+        smiles_col, min_occurrence_threshold
+    )
+    
+    # Determine overall severity (highest severity found)
+    severity_levels = ['OK', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
+    severities = []
+    
+    # Collect all severity values
+    if 'severity' in result['split_characteristics']:
+        severities.append(result['split_characteristics']['severity'])
+    if 'severity' in result['exact_duplicates']:
+        severities.append(result['exact_duplicates']['severity'])
+    if 'overall_severity' in result['similarity_leakage']:
+        severities.append(result['similarity_leakage']['overall_severity'])
+    if 'overall_severity' in result['scaffold_leakage']:
+        severities.append(result['scaffold_leakage']['overall_severity'])
+    if 'overall_severity' in result['stereoisomer_tautomer_leakage']:
+        severities.append(result['stereoisomer_tautomer_leakage']['overall_severity'])
+    if 'overall_severity' in result['property_distributions']:
+        severities.append(result['property_distributions']['overall_severity'])
+    if 'overall_severity' in result['activity_distributions']:
+        severities.append(result['activity_distributions']['overall_severity'])
+    if 'overall_severity' in result['functional_groups']:
+        severities.append(result['functional_groups']['overall_severity'])
+    
+    # Find highest severity
+    severity_indices = [severity_levels.index(s) for s in severities if s in severity_levels]
+    overall_severity_idx = max(severity_indices) if severity_indices else 0
+    overall_severity = severity_levels[overall_severity_idx]
+    
+    result['overall_severity'] = overall_severity
+    
+    # Count issues by severity
+    from collections import Counter
+    severity_counts = Counter(severities)
+    result['severity_summary'] = {
+        'CRITICAL': severity_counts.get('CRITICAL', 0),
+        'HIGH': severity_counts.get('HIGH', 0),
+        'MEDIUM': severity_counts.get('MEDIUM', 0),
+        'LOW': severity_counts.get('LOW', 0),
+        'OK': severity_counts.get('OK', 0)
+    }
+    
+    # Add execution time
+    end_time = datetime.now()
+    result['metadata']['execution_time_seconds'] = (end_time - start_time).total_seconds()
+    result['metadata']['completed_at'] = end_time.isoformat()
+    
+    # Convert numpy types to native Python types for JSON serialization
+    def convert_numpy_types(obj):
+        """Recursively convert numpy types to native Python types."""
+        if isinstance(obj, dict):
+            return {k: convert_numpy_types(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_numpy_types(item) for item in obj]
+        elif isinstance(obj, (np.integer, np.int64, np.int32)):
+            return int(obj)
+        elif isinstance(obj, (np.floating, np.float64, np.float32)):
+            return float(obj)
+        elif isinstance(obj, (np.bool_, bool)):
+            return bool(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return obj
+    
+    result = convert_numpy_types(result)
+    
+    # Save report as JSON
+    print(f"Saving report to {output_filename}...")
+    output_file = _store_resource(
+        result,
+        project_manifest_path,
+        output_filename,
+        explanation,
+        'json'
+    )
+    
+    # Return summary
+    return {
+        'output_filename': output_file,
+        'overall_severity': overall_severity,
+        'severity_summary': result['severity_summary'],
+        'n_checks_performed': 8,
+        'execution_time_seconds': result['metadata']['execution_time_seconds'],
+        'issues_found': {
+            'exact_duplicates': result['exact_duplicates'].get('total_duplicate_molecules', 0),
+            'high_similarity_pairs': sum(
+                result['similarity_leakage'].get(k, {}).get('n_high_similarity', 0)
+                for k in ['test_vs_train', 'val_vs_train', 'val_vs_test']
+                if result['similarity_leakage'].get(k) is not None
+            ),
+            'activity_cliffs': sum(
+                result['similarity_leakage'].get(k, {}).get('n_activity_cliffs', 0)
+                for k in ['test_vs_train', 'val_vs_train', 'val_vs_test']
+                if result['similarity_leakage'].get(k) is not None
+            ),
+            'scaffold_overlap_pct': result['scaffold_leakage'].get('train_test_overlap', {}).get('pct_split2_in_split1', 0),
+            'stereoisomer_pairs': result['stereoisomer_tautomer_leakage'].get('total_stereoisomer_pairs', 0),
+            'tautomer_pairs': result['stereoisomer_tautomer_leakage'].get('total_tautomer_pairs', 0),
+            'significant_property_diffs': result['property_distributions'].get('summary', {}).get('n_significant_train_test', 0),
+            'activity_distribution_different': result['activity_distributions'].get('train_vs_test', {}).get('significant', False),
+            'unique_functional_groups_test': len(result['functional_groups'].get('unique_to_test', []))
+        }
+    }
