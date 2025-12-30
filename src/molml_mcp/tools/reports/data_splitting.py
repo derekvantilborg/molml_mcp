@@ -2090,3 +2090,423 @@ def analyze_split_quality(
             'unique_functional_groups_test': len(result['functional_groups'].get('unique_to_test', []))
         }
     }
+
+
+# ============================================================================
+# TEXT REPORT WRITER
+# ============================================================================
+
+def generate_split_quality_text_report(
+    json_report_filename: str,
+    project_manifest_path: str,
+    output_filename: str,
+    explanation: str = "Data splitting quality text report"
+) -> Dict:
+    """
+    Generate a human-readable text report from a JSON quality analysis.
+    
+    Takes the JSON output from analyze_split_quality() and creates a formatted
+    text report suitable for reading, sharing, or documentation.
+    
+    Parameters
+    ----------
+    json_report_filename : str
+        Filename of the JSON report resource (from analyze_split_quality)
+    project_manifest_path : str
+        Path to manifest.json
+    output_filename : str
+        Output filename prefix for the text report (e.g., "split_quality_report_text")
+    explanation : str
+        Human-readable description of this report
+        
+    Returns
+    -------
+    Dict with:
+        - output_filename: saved text report filename
+        - n_lines: number of lines in report
+        - overall_severity: highest severity found
+        - report_sections: list of section names included
+    """
+    from molml_mcp.infrastructure.resources import _load_resource, _store_resource
+    
+    # Load JSON report
+    report = _load_resource(project_manifest_path, json_report_filename)
+    
+    # Start building text report
+    lines = []
+    
+    # Header
+    lines.append("=" * 80)
+    lines.append("DATA SPLITTING QUALITY ANALYSIS REPORT")
+    lines.append("=" * 80)
+    lines.append("")
+    
+    # Metadata
+    meta = report.get('metadata', {})
+    lines.append(f"Analysis Date: {meta.get('timestamp', 'N/A')}")
+    lines.append(f"Execution Time: {meta.get('execution_time_seconds', 0):.2f}s")
+    lines.append("")
+    lines.append(f"Train File: {meta.get('train_file', 'N/A')}")
+    lines.append(f"Test File: {meta.get('test_file', 'N/A')}")
+    if meta.get('val_file'):
+        lines.append(f"Val File: {meta.get('val_file')}")
+    lines.append("")
+    lines.append(f"SMILES Column: {meta.get('smiles_column', 'N/A')}")
+    lines.append(f"Label Column: {meta.get('label_column', 'N/A')}")
+    lines.append("")
+    
+    # Overall Summary
+    overall_severity = report.get('overall_severity', 'UNKNOWN')
+    severity_summary = report.get('severity_summary', {})
+    
+    lines.append("=" * 80)
+    lines.append("OVERALL ASSESSMENT")
+    lines.append("=" * 80)
+    lines.append("")
+    
+    # Severity icon
+    severity_icons = {
+        'OK': '✓',
+        'LOW': '⚠',
+        'MEDIUM': '⚠⚠',
+        'HIGH': '⚠⚠⚠',
+        'CRITICAL': '🔴'
+    }
+    icon = severity_icons.get(overall_severity, '?')
+    lines.append(f"Overall Severity: {icon} {overall_severity}")
+    lines.append("")
+    lines.append("Severity Breakdown:")
+    lines.append(f"  - CRITICAL: {severity_summary.get('CRITICAL', 0)} checks")
+    lines.append(f"  - HIGH:     {severity_summary.get('HIGH', 0)} checks")
+    lines.append(f"  - MEDIUM:   {severity_summary.get('MEDIUM', 0)} checks")
+    lines.append(f"  - LOW:      {severity_summary.get('LOW', 0)} checks")
+    lines.append(f"  - OK:       {severity_summary.get('OK', 0)} checks")
+    lines.append("")
+    
+    # 1. Split Characteristics
+    lines.append("=" * 80)
+    lines.append("1. SPLIT CHARACTERISTICS")
+    lines.append("=" * 80)
+    lines.append("")
+    
+    split_char = report.get('split_characteristics', {})
+    if 'error' in split_char:
+        lines.append(f"Error: {split_char['error']}")
+    else:
+        train_size = split_char.get('train_size', 'N/A')
+        test_size = split_char.get('test_size', 'N/A')
+        val_size = split_char.get('val_size')
+        
+        lines.append(f"Train Size: {train_size} molecules" if train_size != 'N/A' else f"Train Size: {train_size}")
+        lines.append(f"Test Size:  {test_size} molecules" if test_size != 'N/A' else f"Test Size:  {test_size}")
+        if val_size:
+            lines.append(f"Val Size:   {val_size} molecules" if val_size != 'N/A' else f"Val Size:   {val_size}")
+        lines.append("")
+        
+        split_ratios = split_char.get('split_ratios')
+        if split_ratios and split_ratios.get('train_pct'):
+            ratios = split_char['split_ratios']
+            lines.append("Split Ratios:")
+            lines.append(f"  - Train: {ratios.get('train_pct', 0):.1f}%")
+            lines.append(f"  - Test:  {ratios.get('test_pct', 0):.1f}%")
+            if ratios.get('val_pct'):
+                lines.append(f"  - Val:   {ratios.get('val_pct', 0):.1f}%")
+            lines.append("")
+        
+        if split_char.get('task_type') == 'classification':
+            n_classes = split_char.get('n_classes', '?')
+            lines.append(f"Task Type: Classification ({n_classes} classes)")
+            lines.append("")
+            
+            # Train class distribution
+            if split_char.get('train_class_distribution'):
+                lines.append("Train Class Distribution:")
+                for cls, count in split_char['train_class_distribution'].items():
+                    pct = split_char.get('train_class_percentages', {}).get(cls, 0)
+                    lines.append(f"  - Class {cls}: {count} ({pct:.1f}%)")
+                lines.append("")
+            
+            # Test class distribution
+            if split_char.get('test_class_distribution'):
+                lines.append("Test Class Distribution:")
+                for cls, count in split_char['test_class_distribution'].items():
+                    pct = split_char.get('test_class_percentages', {}).get(cls, 0)
+                    lines.append(f"  - Class {cls}: {count} ({pct:.1f}%)")
+                lines.append("")
+        else:
+            lines.append(f"Task Type: Regression")
+            lines.append("")
+    
+    lines.append(f"Overall Severity: {split_char.get('severity', 'UNKNOWN')}")
+    lines.append("")
+    
+    # 2. Exact Duplicates
+    lines.append("=" * 80)
+    lines.append("2. EXACT DUPLICATE DETECTION")
+    lines.append("=" * 80)
+    lines.append("")
+    
+    exact_dups = report.get('exact_duplicates', {})
+    total_dups = exact_dups.get('total_duplicate_molecules', 0)
+    
+    if total_dups > 0:
+        lines.append(f"🔴 CRITICAL: {total_dups} duplicate molecule(s) found across splits!")
+        lines.append("")
+        lines.append("This is a CRITICAL data leakage issue that will inflate performance metrics.")
+        lines.append("")
+        
+        # Train/Test duplicates
+        train_test = exact_dups.get('train_test_duplicates', {})
+        if train_test.get('n_duplicates', 0) > 0:
+            lines.append(f"Train/Test: {train_test['n_duplicates']} duplicates")
+            if train_test.get('examples'):
+                lines.append("  Examples:")
+                for ex in train_test['examples'][:3]:
+                    lines.append(f"    - {ex['smiles']}")
+            lines.append("")
+        
+        # Train/Val duplicates
+        if exact_dups.get('train_val_duplicates'):
+            train_val = exact_dups['train_val_duplicates']
+            if train_val.get('n_duplicates', 0) > 0:
+                lines.append(f"Train/Val: {train_val['n_duplicates']} duplicates")
+                lines.append("")
+    else:
+        lines.append("✓ No exact duplicates found between splits")
+        lines.append("")
+    
+    lines.append(f"Overall Severity: {exact_dups.get('severity', 'UNKNOWN')}")
+    lines.append("")
+    
+    # 3. Similarity Leakage
+    lines.append("=" * 80)
+    lines.append("3. SIMILARITY-BASED LEAKAGE")
+    lines.append("=" * 80)
+    lines.append("")
+    
+    sim_leak = report.get('similarity_leakage', {})
+    lines.append(f"Similarity Threshold: {sim_leak.get('similarity_threshold', 0.9)}")
+    lines.append(f"Activity Cliff Threshold: {sim_leak.get('activity_cliff_similarity_threshold', 0.8)}")
+    lines.append("")
+    
+    # Test vs Train
+    test_train = sim_leak.get('test_vs_train', {})
+    if test_train:
+        lines.append("Test vs Train:")
+        lines.append(f"  - High similarity pairs: {test_train.get('n_high_similarity', 0)}")
+        lines.append(f"  - Activity cliffs: {test_train.get('n_activity_cliffs', 0)}")
+        if test_train.get('similarity_stats'):
+            stats = test_train['similarity_stats']
+            lines.append(f"  - Avg max similarity: {stats.get('mean', 0):.3f}")
+            lines.append(f"  - Max similarity: {stats.get('max', 0):.3f}")
+        lines.append("")
+    
+    lines.append(f"Overall Severity: {sim_leak.get('overall_severity', 'UNKNOWN')}")
+    lines.append("")
+    
+    # 4. Scaffold Leakage
+    lines.append("=" * 80)
+    lines.append("4. SCAFFOLD OVERLAP")
+    lines.append("=" * 80)
+    lines.append("")
+    
+    scaffold = report.get('scaffold_leakage', {})
+    train_test_overlap = scaffold.get('train_test_overlap', {})
+    
+    if train_test_overlap:
+        n_shared = train_test_overlap.get('n_shared_scaffolds', 0)
+        pct_test = train_test_overlap.get('pct_split2_in_split1', 0)
+        
+        lines.append(f"Train/Test Overlap:")
+        lines.append(f"  - Shared scaffolds: {n_shared}")
+        lines.append(f"  - % of test scaffolds in train: {pct_test:.1f}%")
+        lines.append("")
+        
+        if n_shared > 0 and train_test_overlap.get('examples'):
+            lines.append("  Top shared scaffolds:")
+            for ex in train_test_overlap['examples'][:3]:
+                lines.append(f"    - {ex['scaffold_smiles'][:50]}...")
+                lines.append(f"      Train: {ex['n_molecules_train']} mols, Test: {ex['n_molecules_test']} mols")
+            lines.append("")
+    
+    lines.append(f"Overall Severity: {scaffold.get('overall_severity', 'UNKNOWN')}")
+    lines.append("")
+    
+    # 5. Stereoisomer/Tautomer Leakage
+    lines.append("=" * 80)
+    lines.append("5. STEREOISOMER & TAUTOMER LEAKAGE")
+    lines.append("=" * 80)
+    lines.append("")
+    
+    stereo_taut = report.get('stereoisomer_tautomer_leakage', {})
+    n_stereo = stereo_taut.get('total_stereoisomer_pairs', 0)
+    n_taut = stereo_taut.get('total_tautomer_pairs', 0)
+    
+    lines.append(f"Total Stereoisomer Pairs: {n_stereo}")
+    lines.append(f"Total Tautomer Pairs: {n_taut}")
+    lines.append("")
+    
+    if n_stereo > 0 or n_taut > 0:
+        lines.append("These represent subtle data leakage that can inflate model performance.")
+        lines.append("")
+        
+        # Train/Test details
+        train_test_stereo = stereo_taut.get('train_test_stereoisomers', {})
+        train_test_taut = stereo_taut.get('train_test_tautomers', {})
+        
+        if train_test_stereo.get('n_pairs', 0) > 0:
+            lines.append(f"Train/Test Stereoisomers: {train_test_stereo['n_pairs']} pairs")
+        if train_test_taut.get('n_pairs', 0) > 0:
+            lines.append(f"Train/Test Tautomers: {train_test_taut['n_pairs']} pairs")
+        lines.append("")
+    else:
+        lines.append("✓ No stereoisomer or tautomer leakage detected")
+        lines.append("")
+    
+    lines.append(f"Overall Severity: {stereo_taut.get('overall_severity', 'UNKNOWN')}")
+    lines.append("")
+    
+    # 6. Property Distributions
+    lines.append("=" * 80)
+    lines.append("6. PHYSICOCHEMICAL PROPERTY DISTRIBUTIONS")
+    lines.append("=" * 80)
+    lines.append("")
+    
+    prop_dist = report.get('property_distributions', {})
+    lines.append(f"Statistical Test: Kolmogorov-Smirnov (α={prop_dist.get('alpha', 0.05)})")
+    lines.append(f"Properties Tested: {prop_dist.get('summary', {}).get('n_properties_tested', 8)}")
+    lines.append("")
+    
+    n_sig = prop_dist.get('summary', {}).get('n_significant_train_test', 0)
+    if n_sig > 0:
+        lines.append(f"⚠ {n_sig} properties show significant differences between train/test")
+        lines.append("")
+        
+        # Show significant properties
+        train_test = prop_dist.get('train_vs_test', {})
+        if train_test:
+            lines.append("Significant differences:")
+            for prop, result in train_test.items():
+                if isinstance(result, dict) and result.get('significant'):
+                    train_mean = result.get('train_mean', 0)
+                    test_mean = result.get('test_mean', 0)
+                    p_val = result.get('p_value', 0)
+                    lines.append(f"  - {prop}: train={train_mean:.2f}, test={test_mean:.2f} (p={p_val:.4f})")
+            lines.append("")
+    else:
+        lines.append("✓ No significant property distribution differences detected")
+        lines.append("")
+    
+    lines.append(f"Overall Severity: {prop_dist.get('overall_severity', 'UNKNOWN')}")
+    lines.append("")
+    
+    # 7. Activity Distributions
+    lines.append("=" * 80)
+    lines.append("7. ACTIVITY/LABEL DISTRIBUTIONS")
+    lines.append("=" * 80)
+    lines.append("")
+    
+    act_dist = report.get('activity_distributions', {})
+    task_type = act_dist.get('task_type', 'unknown')
+    lines.append(f"Task Type: {task_type.capitalize()}")
+    lines.append("")
+    
+    train_test = act_dist.get('train_vs_test', {})
+    if train_test and not train_test.get('error'):
+        if task_type == 'classification':
+            lines.append(f"Chi-square test: p={train_test.get('p_value', 0):.4f}")
+            lines.append(f"Interpretation: {train_test.get('interpretation', 'UNKNOWN')}")
+            lines.append("")
+            
+            # Class balance
+            if act_dist.get('class_balance'):
+                lines.append("Class Balance:")
+                for split_name, balance in act_dist['class_balance'].items():
+                    if not balance.get('error'):
+                        imbalanced = balance.get('imbalanced', False)
+                        status = "⚠ Imbalanced" if imbalanced else "✓ Balanced"
+                        ratio = balance.get('min_class_ratio', 0)
+                        lines.append(f"  - {split_name.capitalize()}: {status} (ratio={ratio:.3f})")
+                lines.append("")
+        else:
+            lines.append(f"KS test: p={train_test.get('p_value', 0):.4f}")
+            lines.append(f"Interpretation: {train_test.get('interpretation', 'UNKNOWN')}")
+            lines.append("")
+            lines.append(f"Train: mean={train_test.get('train_mean', 0):.3f}, std={train_test.get('train_std', 0):.3f}")
+            lines.append(f"Test:  mean={train_test.get('test_mean', 0):.3f}, std={train_test.get('test_std', 0):.3f}")
+            lines.append("")
+    
+    lines.append(f"Overall Severity: {act_dist.get('overall_severity', 'UNKNOWN')}")
+    lines.append("")
+    
+    # 8. Functional Groups
+    lines.append("=" * 80)
+    lines.append("8. FUNCTIONAL GROUP DISTRIBUTION")
+    lines.append("=" * 80)
+    lines.append("")
+    
+    func_groups = report.get('functional_groups', {})
+    summary = func_groups.get('summary', {})
+    
+    lines.append(f"Functional Groups Tested: {func_groups.get('n_functional_groups_tested', 19)}")
+    lines.append(f"Shared Across Splits: {summary.get('n_shared', 0)} ({summary.get('pct_shared', 0):.1f}%)")
+    lines.append("")
+    
+    n_unique_test = summary.get('n_unique_to_test', 0)
+    n_unique_train = summary.get('n_unique_to_train', 0)
+    
+    if n_unique_test > 0 or n_unique_train > 0:
+        lines.append("Unique Groups:")
+        if n_unique_train > 0:
+            lines.append(f"  - Train only: {n_unique_train} groups")
+            unique_train = func_groups.get('unique_to_train', [])
+            for group_info in unique_train[:3]:
+                lines.append(f"    * {group_info['group']}: {group_info['count']} molecules ({group_info['pct_molecules']:.1f}%)")
+        
+        if n_unique_test > 0:
+            lines.append(f"  - Test only: {n_unique_test} groups")
+            unique_test = func_groups.get('unique_to_test', [])
+            for group_info in unique_test[:3]:
+                lines.append(f"    * {group_info['group']}: {group_info['count']} molecules ({group_info['pct_molecules']:.1f}%)")
+        lines.append("")
+    else:
+        lines.append("✓ No functional groups unique to a single split")
+        lines.append("")
+    
+    lines.append(f"Overall Severity: {func_groups.get('overall_severity', 'UNKNOWN')}")
+    lines.append("")
+    
+    # Footer
+    lines.append("=" * 80)
+    lines.append("END OF REPORT")
+    lines.append("=" * 80)
+    
+    # Join lines into text
+    report_text = "\n".join(lines)
+    
+    # Save as text resource
+    output_file = _store_resource(
+        report_text,
+        project_manifest_path,
+        output_filename,
+        explanation,
+        'txt'
+    )
+    
+    return {
+        'output_filename': output_file,
+        'n_lines': len(lines),
+        'overall_severity': overall_severity,
+        'report_sections': [
+            'metadata',
+            'overall_assessment',
+            'split_characteristics',
+            'exact_duplicates',
+            'similarity_leakage',
+            'scaffold_overlap',
+            'stereoisomer_tautomer',
+            'property_distributions',
+            'activity_distributions',
+            'functional_groups'
+        ]
+    }
