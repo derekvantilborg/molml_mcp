@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from molml_mcp.tools.ml.training import train_ml_model
-from molml_mcp.tools.ml.evaluation import evaluate_model
+from molml_mcp.tools.ml.evaluation import evaluate_models
 from molml_mcp.infrastructure.resources import _store_resource, _load_resource
 
 TEST_MANIFEST = Path(__file__).parent / "data" / "test_manifest.json"
@@ -55,7 +55,7 @@ def test_evaluate_single_model_classification():
     )
     
     # Evaluate model
-    eval_result = evaluate_model(
+    eval_result = evaluate_models(
         model_filename=train_result['output_filename'],
         test_input_filename=test_file,
         feature_vectors_filename=test_feat,
@@ -129,7 +129,7 @@ def test_evaluate_single_model_regression():
     )
     
     # Evaluate
-    eval_result = evaluate_model(
+    eval_result = evaluate_models(
         model_filename=train_result['output_filename'],
         test_input_filename=test_file,
         feature_vectors_filename=test_feat,
@@ -177,7 +177,7 @@ def test_evaluate_model_error_handling():
     
     # Missing columns error
     with pytest.raises(ValueError, match="Required columns not found"):
-        evaluate_model(
+        evaluate_models(
             model_filename=train_result['output_filename'],
             test_input_filename=data_file,
             feature_vectors_filename=feat_file,

@@ -17,22 +17,22 @@ def train_ml_model(
     random_state: int = 42
 ) -> dict:
     """
-    Train a single machine learning model on molecular data.
+    Train single ML model on molecular data.
     
     Args:
-        train_input_filename: CSV file with SMILES and labels
-        train_feature_vectors_filename: JSON file with SMILES -> feature vector mapping
-        train_smiles_column: Column name for SMILES in train input file
-        train_label_column: Column name for labels in train input file
-        project_manifest_path: Path to project manifest.json
-        output_filename: Name for output model file (without extension)
-        explanation: Description of the model
-        model_algorithm: ML algorithm to use (e.g., "random_forest_classifier", "ridge", "svr")
-        hyperparameters: Optional dict of hyperparameters
-        random_state: Random seed for reproducibility
+        train_input_filename: Training CSV with SMILES and labels
+        train_feature_vectors_filename: Feature vectors JSON
+        train_smiles_column: SMILES column name
+        train_label_column: Label column name
+        project_manifest_path: Path to manifest.json
+        output_filename: Output model name
+        explanation: Description
+        model_algorithm: Algorithm (e.g., "random_forest_classifier", "ridge", "svr")
+        hyperparameters: Optional hyperparameter dict
+        random_state: Random seed
     
     Returns:
-        Dictionary with model info and performance metrics
+        Dict with output_filename, model_algorithm, n_features
     """
     from molml_mcp.tools.ml.trad_ml_models import get_available_models
     
@@ -130,51 +130,32 @@ def train_ml_models_cv(
     random_state: int = 42
 ) -> dict:
     """
-    Train multiple ML models using cross-validation strategies.
+    Train multiple models using cross-validation. Creates train/val splits, trains one model per fold, stores all for ensemble use.
     
-    This function creates multiple train/validation splits using the specified CV strategy,
-    trains a model on each split, and stores all models together for ensemble predictions
-    or cross-validation evaluation.
-    
-    Supports all CV strategies from cross_validation.py:
-    - 'kfold': K-fold cross-validation (random splits)
-    - 'stratified': Stratified K-fold (maintains class distribution)
-    - 'montecarlo': Monte Carlo CV (repeated random sub-sampling)
-    - 'scaffold': Scaffold-based splitting (requires scaffold_column)
-    - 'cluster': Cluster-based splitting (requires cluster_column)
-    - 'leavepout': Leave-P-Out CV (requires p parameter)
+    CV strategies: 'kfold', 'stratified', 'montecarlo', 'scaffold' (needs scaffold_column), 'cluster' (needs cluster_column), 'leavepout' (needs p)
     
     Args:
-        input_filename: CSV file with SMILES and labels
-        feature_vectors_filename: JSON file with SMILES -> feature vector mapping
-        smiles_column: Column name for SMILES in input file
-        label_column: Column name for labels in input file
-        project_manifest_path: Path to project manifest.json
-        output_filename: Name for output model file (without extension)
-        explanation: Description of the models
-        model_algorithm: ML algorithm to use (e.g., "random_forest_classifier", "ridge", "svr")
-        hyperparameters: Optional dict of hyperparameters
-        cv_strategy: Cross-validation strategy ('kfold', 'stratified', 'montecarlo', 'scaffold', 'cluster', 'leavepout')
-        n_folds: Number of folds/splits to generate
-        val_size: Validation size fraction (used for 'montecarlo', optional for others)
-        cluster_column: Column name for cluster assignments (required for 'cluster' strategy)
-        scaffold_column: Column name for pre-computed scaffolds (required for 'scaffold' strategy)
-        shuffle: Whether to shuffle data before splitting (used by most strategies)
-        p: Number of samples to leave out (for 'leavepout' strategy)
-        max_splits: Maximum splits for 'leavepout' (to avoid combinatorial explosion)
-        random_state: Random seed for reproducibility
+        input_filename: Training CSV with SMILES and labels
+        feature_vectors_filename: Feature vectors JSON
+        smiles_column: SMILES column name
+        label_column: Label column name
+        project_manifest_path: Path to manifest.json
+        output_filename: Output model name
+        explanation: Description
+        model_algorithm: Algorithm (e.g., "random_forest_classifier", "ridge", "svr")
+        hyperparameters: Optional hyperparameter dict
+        cv_strategy: CV strategy name
+        n_folds: Number of folds/splits
+        val_size: Validation fraction (for montecarlo)
+        cluster_column: Cluster IDs column (for cluster strategy)
+        scaffold_column: Scaffold IDs column (for scaffold strategy)
+        shuffle: Shuffle data before splitting
+        p: Samples to leave out (for leavepout)
+        max_splits: Max splits for leavepout
+        random_state: Random seed
     
     Returns:
-        Dictionary with:
-            - output_filename: saved model resource filename
-            - model_algorithm: algorithm used
-            - n_models: number of models trained
-            - n_features: number of features per model
-            - cv_strategy: CV strategy used
-            - hyperparameters: hyperparameters used
-            
-    Raises:
-        ValueError: If required columns are missing or CV strategy parameters are invalid
+        Dict with output_filename, n_models, cv_strategy, model_algorithm
     """
     from molml_mcp.tools.ml.cross_validation import get_cv_splits
     from molml_mcp.tools.ml.trad_ml_models import get_available_models

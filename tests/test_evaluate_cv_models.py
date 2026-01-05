@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from molml_mcp.tools.ml.training import train_ml_models_cv
-from molml_mcp.tools.ml.evaluation import evaluate_cv_models
+from molml_mcp.tools.ml.evaluation import evaluate_models
 from molml_mcp.infrastructure.resources import _store_resource, _load_resource
 
 # Use existing test manifest
@@ -95,24 +95,24 @@ def test_evaluate_cv_models_validation_mode(classification_data):
     )
     
     # Evaluate CV models on validation sets
-    eval_result = evaluate_cv_models(
-        cv_model_filename=train_result['output_filename'],
+    result = evaluate_models(
+        model_filename=train_result['output_filename'],
         feature_vectors_filename=features_file,
         project_manifest_path=str(TEST_MANIFEST),
         metrics=['accuracy', 'f1_score', 'precision', 'recall'],
         output_filename='cv_evaluation',
-        use_validation_sets=True
+        use_cv_validation_sets=True
     )
     
     # Verify result structure
-    assert 'output_filename' in eval_result
-    assert eval_result['n_models'] == 5
-    assert eval_result['cv_strategy'] == 'montecarlo'
-    assert eval_result['evaluation_mode'] == 'validation'
-    assert 'metrics_summary' in eval_result
+    assert 'output_filename' in result
+    assert result['n_models'] == 5
+    assert result['cv_strategy'] == 'montecarlo'
+    assert result['evaluation_mode'] == 'cv_validation'
+    assert 'metrics_summary' in result
     
     # Verify metrics were computed
-    metrics_summary = eval_result['metrics_summary']
+    metrics_summary = result['metrics_summary']
     assert 'accuracy' in metrics_summary
     assert 'f1_score' in metrics_summary
     
@@ -126,9 +126,9 @@ def test_evaluate_cv_models_validation_mode(classification_data):
         assert metrics_summary[metric_name]['n_folds'] > 0
     
     # Load detailed report
-    report = _load_resource(str(TEST_MANIFEST), eval_result['output_filename'])
+    report = _load_resource(str(TEST_MANIFEST), result['output_filename'])
     
-    assert report['evaluation_mode'] == 'validation'
+    assert report['evaluation_mode'] == 'cv_validation'
     assert report['n_models'] == 5
     assert len(report['per_fold_metrics']) == 5
     
@@ -171,24 +171,24 @@ def test_evaluate_cv_models_test_mode(classification_data):
     test_data_file = _store_resource(test_df, str(TEST_MANIFEST), 'eval_cv_test_data_independent', 'Test data', 'csv')
     
     # Evaluate CV models on test set
-    eval_result = evaluate_cv_models(
-        cv_model_filename=train_result['output_filename'],
+    result = evaluate_models(
+        model_filename=train_result['output_filename'],
         feature_vectors_filename=features_file,
         project_manifest_path=str(TEST_MANIFEST),
         metrics=['accuracy', 'f1_score'],
         output_filename='cv_evaluation_test',
-        use_validation_sets=False,
+        use_cv_validation_sets=False,
         test_input_filename=test_data_file,
         test_smiles_column='smiles',
         test_label_column='label'
     )
     
     # Verify test mode
-    assert eval_result['evaluation_mode'] == 'test'
-    assert eval_result['n_models'] == 3
+    assert result['evaluation_mode'] == 'test'
+    assert result['n_models'] == 3
     
     # Load report and verify test set info
-    report = _load_resource(str(TEST_MANIFEST), eval_result['output_filename'])
+    report = _load_resource(str(TEST_MANIFEST), result['output_filename'])
     
     assert 'test_dataset' in report
     assert report['test_dataset']['filename'] == test_data_file
@@ -223,17 +223,17 @@ def test_evaluate_cv_models_regression(regression_data):
     )
     
     # Evaluate with regression metrics
-    eval_result = evaluate_cv_models(
-        cv_model_filename=train_result['output_filename'],
+    result = evaluate_models(
+        model_filename=train_result['output_filename'],
         feature_vectors_filename=features_file,
         project_manifest_path=str(TEST_MANIFEST),
         metrics=['mse', 'mae', 'r2'],
         output_filename='cv_evaluation_regression',
-        use_validation_sets=True
+        use_cv_validation_sets=True
     )
     
     # Verify regression metrics
-    metrics_summary = eval_result['metrics_summary']
+    metrics_summary = result['metrics_summary']
     assert 'mse' in metrics_summary
     assert 'mae' in metrics_summary
     assert 'r2' in metrics_summary
@@ -271,20 +271,20 @@ def test_evaluate_cv_models_stratified(classification_data):
     )
     
     # Evaluate
-    eval_result = evaluate_cv_models(
-        cv_model_filename=train_result['output_filename'],
+    result = evaluate_models(
+        model_filename=train_result['output_filename'],
         feature_vectors_filename=features_file,
         project_manifest_path=str(TEST_MANIFEST),
         metrics=['accuracy', 'balanced_accuracy'],
         output_filename='cv_evaluation_stratified',
-        use_validation_sets=True
+        use_cv_validation_sets=True
     )
     
     # Verify CV strategy preserved
-    assert eval_result['cv_strategy'] == 'stratified'
+    assert result['cv_strategy'] == 'stratified'
     
     # Load report
-    report = _load_resource(str(TEST_MANIFEST), eval_result['output_filename'])
+    report = _load_resource(str(TEST_MANIFEST), result['output_filename'])
     assert report['cv_strategy'] == 'stratified'
 
 
@@ -322,17 +322,17 @@ def test_evaluate_cv_models_metrics_consistency():
     )
     
     # Evaluate
-    eval_result = evaluate_cv_models(
-        cv_model_filename=train_result['output_filename'],
+    result = evaluate_models(
+        model_filename=train_result['output_filename'],
         feature_vectors_filename=features_file,
         project_manifest_path=str(TEST_MANIFEST),
         metrics=['accuracy'],
         output_filename='cv_evaluation_perfect',
-        use_validation_sets=True
+        use_cv_validation_sets=True
     )
     
     # With perfect separation, accuracy should be very high and consistent
-    metrics_summary = eval_result['metrics_summary']
+    metrics_summary = result['metrics_summary']
     assert metrics_summary['accuracy']['mean'] > 0.8  # High accuracy
     assert metrics_summary['accuracy']['std'] < 0.3   # Low variance
 
@@ -360,26 +360,26 @@ def test_evaluate_cv_models_error_handling():
         random_state=42
     )
     
-    # Test: missing test file when use_validation_sets=False
+    # Test: missing test file when use_cv_validation_sets=False
     with pytest.raises(ValueError, match="test_input_filename.*required"):
-        evaluate_cv_models(
-            cv_model_filename=train_result['output_filename'],
+        evaluate_models(
+            model_filename=train_result['output_filename'],
             feature_vectors_filename=features_file,
             project_manifest_path=str(TEST_MANIFEST),
             metrics=['accuracy'],
             output_filename='should_fail',
-            use_validation_sets=False
+            use_cv_validation_sets=False
         )
     
     # Test: missing smiles column
     with pytest.raises(ValueError, match="test_smiles_column.*required"):
-        evaluate_cv_models(
-            cv_model_filename=train_result['output_filename'],
+        evaluate_models(
+            model_filename=train_result['output_filename'],
             feature_vectors_filename=features_file,
             project_manifest_path=str(TEST_MANIFEST),
             metrics=['accuracy'],
             output_filename='should_fail',
-            use_validation_sets=False,
+            use_cv_validation_sets=False,
             test_input_filename=data_file
         )
 
@@ -412,17 +412,17 @@ def test_evaluate_cv_models_summary_statistics():
     )
     
     # Evaluate
-    eval_result = evaluate_cv_models(
-        cv_model_filename=train_result['output_filename'],
+    result = evaluate_models(
+        model_filename=train_result['output_filename'],
         feature_vectors_filename=features_file,
         project_manifest_path=str(TEST_MANIFEST),
         metrics=['accuracy'],
         output_filename='cv_evaluation_stats',
-        use_validation_sets=True
+        use_cv_validation_sets=True
     )
     
     # Verify statistics
-    report = _load_resource(str(TEST_MANIFEST), eval_result['output_filename'])
+    report = _load_resource(str(TEST_MANIFEST), result['output_filename'])
     
     accuracy_stats = report['metrics_summary']['accuracy']
     
