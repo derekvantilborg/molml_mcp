@@ -111,22 +111,225 @@ def train_ml_model(
 
 def train_ml_models_cv(
     input_filename: str,
-    feature_columns: List[str],
-    target_column: str,
+    feature_vectors_filename: str,
+    smiles_column: str,
+    label_column: str,
     project_manifest_path: str,
     output_filename: str,
     explanation: str,
     model_algorithm: str = "random_forest_classifier",
     hyperparameters: dict = None,
-    n_models: int = 10,
-    cv_strategy: str = "monte_carlo",
-    train_fraction: float = 0.8,
+    cv_strategy: str = "montecarlo",
     n_folds: int = 5,
+    val_size: Optional[float] = None,
+    cluster_column: Optional[str] = None,
     scaffold_column: Optional[str] = None,
-    random_state: int = 42,
-    store_labels: bool = True
+    shuffle: bool = True,
+    p: int = 1,
+    max_splits: Optional[int] = None,
+    random_state: int = 42
 ) -> dict:
-    pass
+    """
+    Train multiple ML models using cross-validation strategies.
+    
+    This function creates multiple train/validation splits using the specified CV strategy,
+    trains a model on each split, and stores all models together for ensemble predictions
+    or cross-validation evaluation.
+    
+    Supports all CV strategies from cross_validation.py:
+    - 'kfold': K-fold cross-validation (random splits)
+    - 'stratified': Stratified K-fold (maintains class distribution)
+    - 'montecarlo': Monte Carlo CV (repeated random sub-sampling)
+    - 'scaffold': Scaffold-based splitting (requires scaffold_column)
+    - 'cluster': Cluster-based splitting (requires cluster_column)
+    - 'leavepout': Leave-P-Out CV (requires p parameter)
+    
+    Args:
+        input_filename: CSV file with SMILES and labels
+        feature_vectors_filename: JSON file with SMILES -> feature vector mapping
+        smiles_column: Column name for SMILES in input file
+        label_column: Column name for labels in input file
+        project_manifest_path: Path to project manifest.json
+        output_filename: Name for output model file (without extension)
+        explanation: Description of the models
+        model_algorithm: ML algorithm to use (e.g., "random_forest_classifier", "ridge", "svr")
+        hyperparameters: Optional dict of hyperparameters
+        cv_strategy: Cross-validation strategy ('kfold', 'stratified', 'montecarlo', 'scaffold', 'cluster', 'leavepout')
+        n_folds: Number of folds/splits to generate
+        val_size: Validation size fraction (used for 'montecarlo', optional for others)
+        cluster_column: Column name for cluster assignments (required for 'cluster' strategy)
+        scaffold_column: Column name for pre-computed scaffolds (required for 'scaffold' strategy)
+        shuffle: Whether to shuffle data before splitting (used by most strategies)
+        p: Number of samples to leave out (for 'leavepout' strategy)
+        max_splits: Maximum splits for 'leavepout' (to avoid combinatorial explosion)
+        random_state: Random seed for reproducibility
+    
+    Returns:
+        Dictionary with:
+            - output_filename: saved model resource filename
+            - model_algorithm: algorithm used
+            - n_models: number of models trained
+            - n_features: number of features per model
+            - cv_strategy: CV strategy used
+            - hyperparameters: hyperparameters used
+            
+    Raises:
+        ValueError: If required columns are missing or CV strategy parameters are invalid
+    """
+    from molml_mcp.tools.ml.cross_validation import get_cv_splits
+    from molml_mcp.tools.ml.trad_ml_models import get_available_models
+    
+    # Load data
+    df = _load_resource(project_manifest_path, input_filename)
+    feature_vectors_dict = _load_resource(project_manifest_path, feature_vectors_filename)
+    
+    # Validate required columns
+    if smiles_column not in df.columns:
+        raise ValueError(f"SMILES column '{smiles_column}' not found in {input_filename}")
+    if label_column not in df.columns:
+        raise ValueError(f"Label column '{label_column}' not found in {input_filename}")
+    
+    # Validate strategy-specific columns
+    if cv_strategy == 'cluster':
+        if cluster_column is None:
+            raise ValueError("Cluster-based CV requires 'cluster_column' parameter")
+        if cluster_column not in df.columns:
+            raise ValueError(f"Cluster column '{cluster_column}' not found in {input_filename}")
+    
+    if cv_strategy == 'scaffold':
+        if scaffold_column is None:
+            raise ValueError("Scaffold-based CV requires 'scaffold_column' parameter with pre-computed scaffolds")
+        if scaffold_column not in df.columns:
+            raise ValueError(f"Scaffold column '{scaffold_column}' not found in {input_filename}")
+    
+    # Check if model algorithm is supported
+    available_models = get_available_models()
+    if model_algorithm not in available_models:
+        raise ValueError(f"Model '{model_algorithm}' not supported. Available: {list(available_models.keys())}")
+    
+    # Extract SMILES and labels
+    smiles_list = df[smiles_column].tolist()
+    labels = df[label_column].tolist()
+    
+    # Check that all SMILES have feature vectors
+    missing_smiles = [smi for smi in smiles_list if smi not in feature_vectors_dict]
+    if missing_smiles:
+        raise ValueError(f"Missing feature vectors for {len(missing_smiles)} SMILES. First 5: {missing_smiles[:5]}")
+    
+    # Get clusters if needed
+    clusters = None
+    if cv_strategy == 'cluster':
+        clusters = df[cluster_column].tolist()
+    
+    # Get scaffolds if needed
+    scaffolds = None
+    if cv_strategy == 'scaffold':
+        scaffolds = df[scaffold_column].tolist()
+    
+    # Generate CV splits
+    print(f"Generating {n_folds} CV splits using '{cv_strategy}' strategy...")
+    splits = get_cv_splits(
+        strategy=cv_strategy,
+        smiles=smiles_list,
+        n_folds=n_folds,
+        random_state=random_state,
+        labels=labels,
+        clusters=clusters,
+        val_size=val_size,
+        scaffolds=scaffolds,
+        shuffle=shuffle,
+        p=p,
+        max_splits=max_splits
+    )
+    
+    print(f"Training {len(splits)} models...")
+    
+    # Create SMILES -> label mapping for quick lookup
+    smiles_to_label = dict(zip(df[smiles_column], df[label_column]))
+    
+    # Train models on each split
+    models = []
+    data_splits = []
+    
+    for fold_idx, split in enumerate(splits):
+        print(f"  Training model {fold_idx + 1}/{len(splits)}...")
+        
+        # Get train and val SMILES
+        train_smiles = split['train_smiles']
+        val_smiles = split['val_smiles']
+        
+        # Build feature matrices
+        X_train = np.array([feature_vectors_dict[smi] for smi in train_smiles])
+        X_val = np.array([feature_vectors_dict[smi] for smi in val_smiles])
+        
+        # Get labels
+        y_train = np.array([smiles_to_label[smi] for smi in train_smiles])
+        y_val = np.array([smiles_to_label[smi] for smi in val_smiles])
+        
+        # Train model
+        model = _train_ml_model(
+            X=X_train,
+            y=y_train,
+            model_algorithm=model_algorithm,
+            hyperparameters=hyperparameters,
+            random_state=random_state
+        )
+        
+        models.append(model)
+        
+        # Store data split info (SMILES -> label mapping for each split)
+        train_data_dict = {smi: label for smi, label in zip(train_smiles, y_train.tolist())}
+        val_data_dict = {smi: label for smi, label in zip(val_smiles, y_val.tolist())}
+        
+        data_splits.append({
+            'training': train_data_dict,
+            'validation': val_data_dict
+        })
+    
+    # Get feature dimensionality (use first model's training data)
+    n_features = len(feature_vectors_dict[smiles_list[0]])
+    
+    # Prepare model data structure
+    model_data = {
+        "models": models,
+        "data_splits": data_splits,
+        "model_algorithm": model_algorithm,
+        "hyperparameters": hyperparameters or {},
+        "random_state": random_state,
+        "n_features": n_features,
+        "cv_strategy": cv_strategy,
+        "cv_parameters": {
+            "n_folds": n_folds,
+            "val_size": val_size,
+            "cluster_column": cluster_column,
+            "scaffold_column": scaffold_column,
+            "shuffle": shuffle,
+            "p": p,
+            "max_splits": max_splits
+        }
+    }
+    
+    # Store the models
+    print(f"Saving {len(models)} trained models...")
+    output_id = _store_resource(
+        model_data,
+        project_manifest_path,
+        output_filename,
+        explanation,
+        "model"
+    )
+    
+    print(f"✓ Training complete: {output_id}")
+    
+    return {
+        "output_filename": output_id,
+        "model_algorithm": model_algorithm,
+        "n_models": len(models),
+        "n_features": n_features,
+        "cv_strategy": cv_strategy,
+        "n_folds": n_folds,
+        "hyperparameters": hyperparameters or {}
+    }
 
 
 def _train_ml_model(
