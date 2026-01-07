@@ -1,0 +1,161 @@
+SMILES,comment
+INVALID_SMILES_123,Invalid SMILES string
+C(C)(C)(C)(C)C,Invalid valence
+c1ccccc,Unclosed ring
+CC(=O)O.Na,Sodium salt
+c1ccccc1.HCl,HCl salt
+CCN.Cl,Chloride salt
+CC(C)N.Br,Bromide salt
+Nc1ccccc1.H2SO4,Sulfate salt
+CC(=O)O.[K],Potassium salt
+c1ccccc1C(=O)O.[Ca],Calcium salt
+CCN(CC)CC.[Zn],Zinc salt
+CCO.O,Ethanol with water
+c1ccccc1.CCO,Benzene with ethanol
+CC(=O)C.O.O,Acetone with water
+c1ccccc1.CCCCO,Benzene with butanol
+CC(=O)NC.O.CCO.DMSO,Multiple solvents
+CC(=O)O.CC(=O)O,Acetic acid dimer
+c1ccccc1.c1ccccc1.Cl,Benzene dimer with chloride
+CCN.CCO.CC(=O)O,Multiple fragments
+C(C)(C)C,Non-canonical branching
+C1CCCCC1,Non-canonical cyclohexane
+C(C(C(C)C)C)C,Non-canonical branching
+CC[NH3+],Protonated amine
+CC(=O)[O-],Carboxylate anion
+c1cc[n+]cc1,Pyridinium cation
+[O-]c1ccccc1,Phenoxide anion
+CC[N+](C)(C)C.[Cl-],Quaternary ammonium salt
+C([C@@H](C(=O)[O-])[NH3+])O,Serine zwitterion
+CC(C(=O)[O-])[NH3+],Alanine zwitterion
+[2H]C([2H])([2H])O,Deuterated methanol
+[13C]CO,C13-labeled ethanol
+CC([18F])CC,F18-labeled compound
+c1ccc([2H])cc1,Deuterated benzene
+C[13C](=O)O,C13-labeled acetate
+c1ccccc1[Fe],Phenyl-iron complex
+C1=CC=CC=C1.[Fe+2],Benzene-iron complex
+[Cu+2].c1ccccc1,Copper-benzene complex
+CC[Mg]Cl,Grignard reagent
+c1ccccc1[B](O)O,Phenylboronic acid
+O=C1NC=CC=C1,Pyridone tautomer form 1
+OC1=NC=CC=C1,Pyridone tautomer form 2
+CC(=O)N,Acetamide tautomer form 1
+CC(O)=N,Acetamide tautomer form 2
+c1c[nH]c(=O)[nH]c1=O,Uracil tautomer form 1
+c1c[nH]c(O)nc1O,Uracil tautomer form 2
+C[C@H](O)CC,R-stereoisomer
+C[C@@H](O)CC,S-stereoisomer
+CC(O)CC,No stereochemistry
+C/C=C/C,E-alkene
+C/C=C\C,Z-alkene
+[N+](=O)[O-]c1ccccc1,Nitrobenzene zwitterion
+c1ccc([N+](=O)[O-])cc1,Para-nitrobenzene
+C[N+]([O-])=O,Nitromethane
+CC(=O)N=[N+]=[N-],Acyl azide
+O=C1C=CC(=O)C=C1,Para-quinone PAINS
+Oc1ccc(O)cc1,Hydroquinone PAINS
+c1ccc2c(c1)[nH]c(=O)[nH]2,Benzimidazolone
+c1ccccc1,Benzene duplicate 1
+c1ccccc1,Benzene duplicate 2
+CCO,Ethanol duplicate 1
+CCO,Ethanol duplicate 2
+[H]C([H])([H])C([H])([H])[H],Explicit hydrogens
+C,Methane
+CC,Ethane
+[C],Atomic carbon
+CC#N,Acetonitrile
+C#N,Hydrogen cyanide
+CC(=O)O.Na.O,Salt with water
+[2H]C([2H])([2H])[NH3+].[Cl-],Deuterated ammonium chloride
+c1ccccc1[Fe].[Cl-].O,Metal complex with salt and water
+CC(=O)[O-].[Na+].CCO.O,Acetate salt with solvents
+O=C1C(=O)c2ccccc2C1=O,Naphthoquinone PAINS
+O=C1c2ccccc2C(=O)c2ccccc21,Anthraquinone PAINS
+c1ccc2c(c1)C(=O)C=CC2=O,Naphthoquinone variant PAINS
+O=C1C=C(c2ccccc2)C=CC1=O,Phenyl-quinone PAINS
+Oc1ccccc1O,Catechol PAINS
+Oc1ccc(O)cc1,Para-diphenol PAINS
+Oc1cc(O)ccc1,Meta-diphenol PAINS
+c1cc(O)c(O)cc1,Catechol isomer PAINS
+Oc1ccc(cc1O)C=O,Hydroxybenzaldehyde PAINS
+O=C1CSC(=S)N1,Rhodanine PAINS
+O=C1CSC(=S)N1c2ccccc2,N-phenyl rhodanine PAINS
+CC1=C(C(=O)O)CSC1=S,Thiazolidinone PAINS
+O=C1CSC(=O)N1,Thiazolidinedione PAINS
+C=CC(=O)C,Methyl vinyl ketone Michael acceptor PAINS
+C=CC(=O)c1ccccc1,Phenyl vinyl ketone PAINS
+O=C(C=Cc1ccccc1)c2ccccc2,Chalcone PAINS
+CC(=O)C=Cc1ccccc1,Benzylidene acetone PAINS
+C=CC(=O)N,Acrylamide PAINS
+Oc1ccc(cc1)CNC,Mannich base PAINS
+Oc1ccc(CN)cc1,Aminomethyl phenol PAINS
+Oc1ccccc1CN(C)C,Dimethylamino phenol PAINS
+c1cc(O)c(cc1)CN,Aminomethyl catechol PAINS
+O=C(C=Cc1ccccc1)C=Cc2ccccc2,Bis-chalcone curcumin-like PAINS
+COc1ccc(C=CC(=O)C=Cc2ccc(O)cc2)cc1,Curcumin analog PAINS
+c1ccc(C=CC(=O)C=Cc2ccccc2)cc1,Diphenyl dienone PAINS
+Oc1ccc(/C=N/N)cc1,Hydroxyphenyl hydrazone PAINS
+Oc1ccccc1/C=N/Nc2ccccc2,Phenyl hydrazone PAINS
+c1cc(O)ccc1C=NN,Hydrazone PAINS
+O=C1CC(=Cc2ccccc2)C(=O)NC1=O,Alkylidene barbiturate PAINS
+CC1=C(C(=O)NC1=O)c2ccccc2,Phenyl barbiturate PAINS
+NC(=S)Nc1ccccc1,Phenyl thiourea PAINS
+c1ccc(NC(=S)N)cc1,Amino thiourea PAINS
+CC(C)NC(=S)NCc1ccccc1,Benzyl thiourea PAINS
+NC(=S)NCC,Ethyl thiourea PAINS
+Oc1cc(O)cc(O)c1,Phloroglucinol tannin-like PAINS
+Oc1ccc(O)c(O)c1,Pyrogallol PAINS
+c1c(O)cc(O)cc1O,Trihydroxybenzene PAINS
+O=CC(=O)C=C,Vinyl glyoxal PAINS
+O=C(C)C(=O)C=Cc1ccccc1,Phenyl ene-dione PAINS
+CC(=O)C(=O)C,Diacetyl PAINS
+Oc1ccc2ncccc2c1,Hydroxyquinoline PAINS
+c1cc2c(O)ccnc2cc1,Hydroxyisoquinoline PAINS
+Oc1cnc2ccccc2c1,Quinoline N-oxide PAINS
+[O-][N+](=O)c1ccc([N+](=O)[O-])cc1,Dinitrobenzene PAINS
+c1ccc([N+](=O)[O-])cc1O,Nitrophenol PAINS
+[O-][N+](=O)c1ccccc1C=O,Nitrobenzaldehyde PAINS
+c1ccc(N=Nc2ccccc2)cc1,Azobenzene PAINS
+Nc1ccc(N=Nc2ccccc2)cc1,Amino azobenzene PAINS
+c1ccc(N=Nc2ccc(O)cc2)cc1,Hydroxy azobenzene PAINS
+Oc1ccc(cc1)C2OC(CO)C(O)C(O)C2O,Glucoside mimic PAINS
+c1ccc2[nH]c(C=O)cc2c1,Indole aldehyde PAINS
+c1ccc2c(c1)cc(C(=O)O)[nH]2,Indole carboxylic acid PAINS
+c1ccc2[nH]c(C=C(C)C)cc2c1,Substituted indole PAINS
+c1cc[nH]c1C=O,Pyrrole aldehyde PAINS
+c1cc(C(=O)O)[nH]c1,Pyrrole carboxylic acid PAINS
+n1c(C=C(C)C)ccc1,Substituted pyrrole PAINS
+COc1ccc(OC)cc1,Dimethoxy benzene PAINS
+COc1cc(OC)cc(OC)c1,Trimethoxy benzene PAINS
+c1ccc(OC)c(OC)c1,Dimethoxy benzene isomer PAINS
+Nc1ccc([N+](=O)[O-])cc1,Nitroaniline PAINS
+Nc1ccc(O)cc1,Aminophenol PAINS
+c1ccc(N)cc1C=O,Aminobenzaldehyde PAINS
+Nc1ccc(cc1)C(=O)O,Aminobenzoic acid PAINS
+CC(=O)NO,Acetohydroxamic acid PAINS
+c1ccccc1C(=O)NO,Benzohydroxamic acid PAINS
+CC(=O)N(O)C,N-methyl hydroxamic acid PAINS
+Sc1ccccc1,Thiophenol PAINS
+,
+c1ccc(S)cc1,Para-thiophenol PAINS
+CSc1ccccc1,Methylthio benzene PAINS
+C=NCS,Isothiocyanate PAINS
+c1ccc(N=C=S)cc1,Phenyl isothiocyanate PAINS
+C1OC1c2ccccc2,Styrene oxide PAINS
+C1CO1,Ethylene oxide PAINS
+c1ccc2c(c1)C1OC1C2,Naphthyl epoxide PAINS
+CCOOCC,Diethyl peroxide PAINS
+c1ccccc1OOc2ccccc2,Diphenyl peroxide PAINS
+CC(=O)NN,Acethydrazide PAINS
+c1ccccc1C(=O)NNC(=O)c2ccccc2,Dibenzoyl hydrazide PAINS
+NNC(=O)c1ccccc1,Benzohydrazide PAINS
+CC(=O)C#N,Acetyl cyanide PAINS
+c1ccccc1C(=O)C#N,Benzoyl cyanide PAINS
+c1ccc(C=O)cc1C=O,Phthalaldehyde PAINS
+Oc1ccc(C=O)cc1,Hydroxybenzaldehyde reactive PAINS
+COc1ccccc1C=O,Methoxybenzaldehyde PAINS
+BrCCCCBr,Dibromobutane bis-electrophile PAINS
+ClC=CCl,Dichloroethylene PAINS
+O=C1CCCC(=O)C1,Cyclohexanedione PAINS
+c1ccc(S(=O)(=O)Cl)cc1,Benzenesulfonyl chloride PAINS
