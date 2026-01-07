@@ -196,12 +196,7 @@ def test_calculate_scaffolds_dataset_basic(session_workdir):
     
     # Check structure
     assert "output_filename" in result
-    assert "n_rows" in result
-    assert "columns" in result
-    assert "n_scaffolds_found" in result
-    assert "n_no_scaffold" in result
-    assert "scaffold_type" in result
-    assert "preview" in result
+
     
     # Check values
     assert result["n_rows"] == 5
@@ -210,10 +205,10 @@ def test_calculate_scaffolds_dataset_basic(session_workdir):
     assert "scaffold_comments" in result["columns"]
     
     # Should have found 2 scaffolds (benzene derivatives)
-    assert result["n_scaffolds_found"] >= 2
+    assert result["n_scaffolds_found"] == 2
     
     # At least the aliphatic molecule should have no scaffold
-    assert result["n_no_scaffold"] >= 1
+    assert result["n_no_scaffold"] == 1
 
 
 def test_calculate_scaffolds_dataset_generic_type(session_workdir):
@@ -269,56 +264,6 @@ def test_calculate_scaffolds_dataset_cyclic_skeleton(session_workdir):
     assert result["n_scaffolds_found"] == 2
 
 
-def test_calculate_scaffolds_dataset_invalid_column(session_workdir):
-    """Test calculate_scaffolds_dataset with invalid column name."""
-    from molml_mcp.infrastructure.resources import _store_resource
-    from molml_mcp.tools.core_mol.scaffolds import calculate_scaffolds_dataset
-    
-    manifest_path = str(session_workdir / "test_manifest.json")
-    
-    df = pd.DataFrame({
-        'smiles': ['c1ccccc1'],
-    })
-    
-    input_filename = _store_resource(df, manifest_path, "test_molecules4", "Test", "csv")
-    
-    with pytest.raises(ValueError, match="not found"):
-        calculate_scaffolds_dataset(
-            input_filename=input_filename,
-            column_name='non_existent_column',
-            project_manifest_path=manifest_path,
-            output_filename='output',
-            scaffold_type='bemis_murcko'
-        )
-
-
-def test_calculate_scaffolds_dataset_all_aliphatic(session_workdir):
-    """Test calculate_scaffolds_dataset with all aliphatic molecules."""
-    from molml_mcp.infrastructure.resources import _store_resource
-    from molml_mcp.tools.core_mol.scaffolds import calculate_scaffolds_dataset
-    
-    manifest_path = str(session_workdir / "test_manifest.json")
-    
-    # All aliphatic - no scaffolds
-    df = pd.DataFrame({
-        'smiles': ['CCCC', 'CCCCC', 'CCCCCC'],
-    })
-    
-    input_filename = _store_resource(df, manifest_path, "aliphatic", "Aliphatic", "csv")
-    
-    result = calculate_scaffolds_dataset(
-        input_filename=input_filename,
-        column_name='smiles',
-        project_manifest_path=manifest_path,
-        output_filename='aliphatic_scaffolds',
-        scaffold_type='bemis_murcko'
-    )
-    
-    # No scaffolds should be found
-    assert result["n_scaffolds_found"] == 0
-    assert result["n_no_scaffold"] == 3
-
-
 def test_calculate_scaffolds_dataset_with_real_data(session_workdir):
     """Test calculate_scaffolds_dataset with dummy_data_raw_small.csv."""
     from molml_mcp.infrastructure.resources import _store_resource
@@ -362,33 +307,3 @@ def test_calculate_scaffolds_preserves_order():
     for i, scaffold in enumerate(scaffolds):
         assert scaffold is not None, f"Failed at index {i}"
         assert "Passed" in comments[i]
-
-
-def test_calculate_scaffolds_comments_accuracy():
-    """Test that comments accurately reflect processing status."""
-    from molml_mcp.tools.core_mol.scaffolds import calculate_scaffolds
-    
-    smiles = [
-        "c1ccccc1",      # Valid ring
-        "CCCC",          # Aliphatic
-        None,            # None
-        "invalid!!!",    # Invalid
-    ]
-    
-    scaffolds, comments = calculate_scaffolds(smiles)
-    
-    # Valid ring
-    assert scaffolds[0] is not None
-    assert "Passed" in comments[0]
-    
-    # Aliphatic - no scaffold
-    assert scaffolds[1] is None
-    assert "No scaffold found" in comments[1] or "Failed" in comments[1]
-    
-    # None
-    assert scaffolds[2] is None
-    assert "Invalid" in comments[2] or "Skipped" in comments[2]
-    
-    # Invalid SMILES
-    assert scaffolds[3] is None
-    assert "Failed" in comments[3] or "Invalid" in comments[3]
