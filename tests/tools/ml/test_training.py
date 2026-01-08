@@ -321,8 +321,9 @@ def test_train_single_ml_model_regression(sample_regression_data):
     assert result['n_features'] == 3
 
 
-def test_train_single_ml_model_missing_smiles_column(sample_train_data):
-    """Test error when SMILES column is missing."""
+def test_train_single_ml_model_error_handling(sample_train_data):
+    """Test error handling for missing columns and invalid algorithm."""
+    # Missing SMILES column
     with pytest.raises(ValueError, match="SMILES column .* not found"):
         train_single_ml_model(
             train_input_filename=sample_train_data['train_filename'],
@@ -335,10 +336,8 @@ def test_train_single_ml_model_missing_smiles_column(sample_train_data):
             model_algorithm='random_forest_classifier',
             random_state=42
         )
-
-
-def test_train_single_ml_model_missing_label_column(sample_train_data):
-    """Test error when label column is missing."""
+    
+    # Missing label column
     with pytest.raises(ValueError, match="Label column .* not found"):
         train_single_ml_model(
             train_input_filename=sample_train_data['train_filename'],
@@ -351,10 +350,8 @@ def test_train_single_ml_model_missing_label_column(sample_train_data):
             model_algorithm='random_forest_classifier',
             random_state=42
         )
-
-
-def test_train_single_ml_model_invalid_algorithm(sample_train_data):
-    """Test error with invalid model algorithm."""
+    
+    # Invalid algorithm
     with pytest.raises(ValueError, match="not supported"):
         train_single_ml_model(
             train_input_filename=sample_train_data['train_filename'],
@@ -531,8 +528,9 @@ def test_train_ml_models_cv_scaffold(sample_cv_data):
     assert result['cv_strategy'] == 'scaffold'
 
 
-def test_train_ml_models_cv_missing_smiles_column(sample_cv_data):
-    """Test error when SMILES column is missing in CV."""
+def test_train_ml_models_cv_error_handling(sample_cv_data):
+    """Test error handling for missing columns in CV training."""
+    # Missing SMILES column
     with pytest.raises(ValueError, match="SMILES column .* not found"):
         train_ml_models_cross_validation(
             input_filename=sample_cv_data['train_filename'],
@@ -547,10 +545,8 @@ def test_train_ml_models_cv_missing_smiles_column(sample_cv_data):
             n_folds=3,
             random_state=42
         )
-
-
-def test_train_ml_models_cv_missing_label_column(sample_cv_data):
-    """Test error when label column is missing in CV."""
+    
+    # Missing label column
     with pytest.raises(ValueError, match="Label column .* not found"):
         train_ml_models_cross_validation(
             input_filename=sample_cv_data['train_filename'],

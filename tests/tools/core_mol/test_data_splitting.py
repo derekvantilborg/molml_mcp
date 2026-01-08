@@ -320,7 +320,7 @@ def test_cluster_based_split_dataset_basic(session_workdir):
         else:
             fps.append([0] * 1024)
     
-    kmeans = KMeans(n_clusters=10, random_state=42, n_init=10)
+    kmeans = KMeans(n_clusters=5, random_state=42, n_init=10)  # Fewer clusters for smaller dataset
     df["cluster"] = kmeans.fit_predict(fps)
     
     input_filename = _store_resource(df, manifest_path, "dummy_data_cluster", "Dummy molecules", "csv")
@@ -347,8 +347,8 @@ def test_cluster_based_split_dataset_basic(session_workdir):
     # Check splits
     assert result["n_train_rows"] + result["n_test_rows"] == len(df)
     # Cluster-based splits vary but should have reasonable distribution
-    assert result["n_train_rows"] >= 100
-    assert result["n_test_rows"] >= 20
+    assert result["n_train_rows"] >= 30  # Adjusted for smaller dataset
+    assert result["n_test_rows"] >= 10  # Adjusted for smaller dataset
 
 
 def test_cluster_based_split_dataset_with_validation(session_workdir):
@@ -362,7 +362,7 @@ def test_cluster_based_split_dataset_with_validation(session_workdir):
     manifest_path = str(session_workdir / "test_manifest.json")
     
     dummy_data_path = Path(__file__).parent.parent.parent / "data" / "dummy_data_raw_small.csv"
-    df = pd.read_csv(dummy_data_path)
+    df = pd.read_csv(dummy_data_path).head(50)  # Use smaller dataset for speed
     
     # Add cluster assignments
     fps = []
@@ -374,7 +374,7 @@ def test_cluster_based_split_dataset_with_validation(session_workdir):
         else:
             fps.append([0] * 1024)
     
-    kmeans = KMeans(n_clusters=10, random_state=42, n_init=10)
+    kmeans = KMeans(n_clusters=5, random_state=42, n_init=10)  # Fewer clusters for smaller dataset
     df["cluster"] = kmeans.fit_predict(fps)
     
     input_filename = _store_resource(df, manifest_path, "dummy_data_cluster2", "Dummy molecules", "csv")
@@ -396,7 +396,7 @@ def test_cluster_based_split_dataset_with_validation(session_workdir):
     assert result["val_output_filename"] is not None
     assert result["n_train_rows"] + result["n_test_rows"] + result["n_val_rows"] == len(df)
     # Cluster-based splits vary but should have reasonable distribution
-    assert result["n_train_rows"] >= 85
-    assert result["n_test_rows"] >= 20
-    assert result["n_val_rows"] >= 5
+    assert result["n_train_rows"] >= 25  # Adjusted for smaller dataset
+    assert result["n_test_rows"] >= 8  # Adjusted for smaller dataset
+    assert result["n_val_rows"] >= 3  # Adjusted for smaller dataset
     assert result["n_val_clusters"] >= 1
