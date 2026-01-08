@@ -21,14 +21,6 @@ from molml_mcp.infrastructure.resources import _store_resource
 
 # Fixtures
 @pytest.fixture
-def session_workdir(request, tmp_path):
-    """Create a temporary directory for test data."""
-    test_dir = tmp_path / request.node.name
-    test_dir.mkdir(parents=True, exist_ok=True)
-    return test_dir
-
-
-@pytest.fixture
 def sample_tuning_data(session_workdir):
     """Create sample dataset for hyperparameter tuning."""
     # Create training data with enough samples for meaningful CV
