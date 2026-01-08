@@ -35,4 +35,5 @@ filterwarnings = [
 ]
 markers = [
     "slow: marks tests as slow (taking longer than 1 second) (deselect with '-m \"not slow\"')",
+    "server: marks tests for server initialization (run with '-m server')",
 ]

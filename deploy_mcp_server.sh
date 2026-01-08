@@ -20,26 +20,18 @@ echo "[deploy] Ensuring dependencies are synced with uv..."
 "$UV_BIN" sync
 
 ##############################################
-# 2. Test server imports and startup
+# 2. Run server test
 ##############################################
 
-echo "[deploy] Testing server.py for import errors..."
+echo "[deploy] Running server initialization test..."
 
-# Run server.py with a 2-second timeout to check for import/startup errors
-if ! PYTHONPATH="$PROJECT_DIR/src" "$UV_BIN" run --directory "$PROJECT_DIR" timeout 2s python "$PROJECT_DIR/src/molml_mcp/server.py" 2>&1 | head -20 > /tmp/mcp_test.log; then
-  # Check if it was a timeout (expected) or a real error
-  if grep -q "Traceback\|Error\|ImportError\|ModuleNotFoundError" /tmp/mcp_test.log; then
-    echo "[deploy] ERROR: Server startup failed with errors:"
-    cat /tmp/mcp_test.log
-    echo ""
-    echo "[deploy] Fix the errors above before deploying."
-    rm -f /tmp/mcp_test.log
-    exit 1
-  fi
+if ! "$UV_BIN" run --directory "$PROJECT_DIR" pytest -m server -q; then
+  echo "[deploy] ERROR: Server test failed!"
+  echo "[deploy] Fix the errors above before deploying."
+  exit 1
 fi
 
-echo "[deploy] Server imports validated successfully."
-rm -f /tmp/mcp_test.log
+echo "[deploy] Server test passed."
 
 ##############################################
 # 3. Patch Claude Desktop config JSON

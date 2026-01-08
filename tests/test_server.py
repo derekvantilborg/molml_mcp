@@ -6,6 +6,7 @@ import pytest
 
 
 @pytest.mark.slow
+@pytest.mark.server
 def test_server_imports_and_initializes():
     """Test that server.py can be imported and initialized without errors."""
     # Run server.py directly as subprocess using the virtual environment
