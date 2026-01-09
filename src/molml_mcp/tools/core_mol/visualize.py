@@ -26,7 +26,7 @@ def smiles_to_acs1996_png(
     project_manifest_path: str,
     filename: str,
     explanation: str,
-    base_size: Tuple[int, int] = (300, 300),
+    base_size: Tuple[int, int] = (200, 200),
     legend: Optional[str] = '',
 ) -> list:
     """
