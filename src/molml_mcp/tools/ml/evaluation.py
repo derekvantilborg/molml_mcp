@@ -51,6 +51,7 @@ def predict_ml_model(
 ) -> dict:
     """
     Generate predictions from single model or CV ensemble. For CV models, outputs per-fold predictions plus aggregates (mean, std, entropy).
+    For uncertainty-aware models (BayesianEnsemble), includes uncertainty estimates.
     
     Args:
         ml_model_filename: Model(s) from train_single_ml_model() or train_ml_models_cross_validation()
@@ -93,29 +94,92 @@ def predict_ml_model(
     
     output_df = test_df.copy()
     
+    # Check if models support uncertainty prediction
+    has_uncertainty = hasattr(models[0], "predict_with_uncertainty")
+    
+    # For probability uncertainty, we need to check if the trained estimators support it
+    # BayesianEnsemble wraps models, so check the underlying estimators
+    has_proba_uncertainty = False
+    if hasattr(models[0], "predict_proba_with_uncertainty"):
+        # Check if the underlying estimators support predict_proba
+        if hasattr(models[0], 'estimators_') and len(models[0].estimators_) > 0:
+            has_proba_uncertainty = hasattr(models[0].estimators_[0], 'predict_proba')
+        else:
+            # Fallback: check if the model itself has predict_proba
+            has_proba_uncertainty = hasattr(models[0], "predict_proba")
+    
     if not is_cv:
         # Single model: simple prediction
-        predictions = models[0].predict(X_test)
-        output_df[predict_column_name] = predictions
+        model = models[0]
+        
+        if has_uncertainty:
+            # Uncertainty-aware model (e.g., BayesianEnsemble)
+            mean, std, _ = model.predict_with_uncertainty(X_test)
+            output_df[predict_column_name] = mean
+            output_df[f"{predict_column_name}_uncertainty"] = std
+        else:
+            # Standard model
+            predictions = model.predict(X_test)
+            output_df[predict_column_name] = predictions
+        
+        # Add probability predictions with uncertainty if available
+        if has_proba_uncertainty:
+            proba_mean, proba_std, _ = model.predict_proba_with_uncertainty(X_test)
+            # For binary classification, store probability of positive class
+            if proba_mean.shape[1] == 2:
+                output_df[f"{predict_column_name}_proba"] = proba_mean[:, 1]
+                output_df[f"{predict_column_name}_proba_uncertainty"] = proba_std[:, 1]
+            else:
+                # Multi-class: store all class probabilities and uncertainties
+                for class_idx in range(proba_mean.shape[1]):
+                    output_df[f"{predict_column_name}_proba_class{class_idx}"] = proba_mean[:, class_idx]
+                    output_df[f"{predict_column_name}_proba_class{class_idx}_uncertainty"] = proba_std[:, class_idx]
+        elif hasattr(model, "predict_proba"):
+            # Standard probability predictions without uncertainty
+            # But skip if this is a BayesianEnsemble with regressors
+            try:
+                proba = model.predict_proba(X_test)
+                if proba.shape[1] == 2:
+                    output_df[f"{predict_column_name}_proba"] = proba[:, 1]
+                else:
+                    for class_idx in range(proba.shape[1]):
+                        output_df[f"{predict_column_name}_proba_class{class_idx}"] = proba[:, class_idx]
+            except AttributeError:
+                # Model has predict_proba method but doesn't support it (e.g., BayesianEnsemble with regressor)
+                pass
     else:
         # Multiple models: per-fold predictions + aggregates
         all_predictions = []
+        all_uncertainties = [] if has_uncertainty else None
         
         for fold_idx, model in enumerate(models, 1):
-            preds = model.predict(X_test)
-            col_name = f"{predict_column_name}_{fold_idx}"
-            output_df[col_name] = preds
-            all_predictions.append(preds)
+            if has_uncertainty:
+                mean, std, _ = model.predict_with_uncertainty(X_test)
+                col_name = f"{predict_column_name}_{fold_idx}"
+                output_df[col_name] = mean
+                output_df[f"{col_name}_uncertainty"] = std
+                all_predictions.append(mean)
+                all_uncertainties.append(std)
+            else:
+                preds = model.predict(X_test)
+                col_name = f"{predict_column_name}_{fold_idx}"
+                output_df[col_name] = preds
+                all_predictions.append(preds)
         
         # Convert to array for aggregation
         pred_array = np.array(all_predictions)  # Shape: (n_folds, n_samples)
         
-        # Mean and std
+        # Mean and std across folds
         output_df[f"{predict_column_name}_mean"] = np.mean(pred_array, axis=0)
         output_df[f"{predict_column_name}_std"] = np.std(pred_array, axis=0)
         
+        # If uncertainty estimates are available, also aggregate those
+        if all_uncertainties is not None:
+            uncertainty_array = np.array(all_uncertainties)
+            output_df[f"{predict_column_name}_uncertainty_mean"] = np.mean(uncertainty_array, axis=0)
+        
         # Entropy for classification (check if predictions are discrete)
-        if hasattr(models[0], "predict_proba"):
+        if hasattr(models[0], "predict_proba") or has_proba_uncertainty:
             # Classification: compute entropy from prediction distribution
             entropies = []
             for sample_idx in range(len(test_smiles)):
@@ -139,6 +203,7 @@ def predict_ml_model(
         "output_filename": output_id,
         "n_models": len(models),
         "n_predictions": len(test_smiles),
+        "has_uncertainty": has_uncertainty,
         "columns": output_df.columns.tolist()
     }
 

@@ -350,10 +350,12 @@ def test_predict_ml_model_single(sample_prediction_data):
     assert 'n_models' in result
     assert 'n_predictions' in result
     assert 'columns' in result
+    assert 'has_uncertainty' in result
     
     # Check values
     assert result['n_models'] == 1
     assert result['n_predictions'] == 20
+    assert result['has_uncertainty'] is False  # Standard model has no uncertainty
     assert 'prediction' in result['columns']
     
     # Load and verify output
@@ -363,6 +365,97 @@ def test_predict_ml_model_single(sample_prediction_data):
     )
     assert 'prediction' in pred_df.columns
     assert len(pred_df) == 20
+
+
+def test_predict_ml_model_single_with_uncertainty(session_workdir):
+    """Test prediction with single BayesianEnsemble model (uncertainty)."""
+    np.random.seed(42)
+    n_samples = 20
+    
+    # Train a BayesianEnsemble model
+    from sklearn.datasets import make_classification
+    from molml_mcp.tools.ml.trad_ml.ensembled_models import BayesianEnsemble
+    X_train, y_train = make_classification(n_samples=50, n_features=5, random_state=42)
+    
+    # Pass the class, not an instance
+    ensemble_model = BayesianEnsemble(
+        base_estimator=RandomForestClassifier, 
+        ensemble_size=5, 
+        random_state=42,
+        n_estimators=3  # This goes to the base model
+    )
+    ensemble_model.fit(X_train, y_train)
+    
+    # Create test data
+    test_df = pd.DataFrame({
+        'smiles': [f'TEST_{i}' for i in range(n_samples)],
+        'label': np.random.randint(0, 2, n_samples).tolist()
+    })
+    
+    test_features = {
+        f'TEST_{i}': np.random.randn(5).tolist() 
+        for i in range(n_samples)
+    }
+    
+    # Create manifest
+    manifest_path = session_workdir / "manifest.json"
+    manifest_data = {"resources": []}
+    with open(manifest_path, 'w') as f:
+        json.dump(manifest_data, f)
+    
+    # Store ensemble model
+    ensemble_model_data = {
+        "models": [ensemble_model],
+        "model_algorithm": "random_forest_classifier_w_uncertainty",
+        "n_features": 5
+    }
+    ensemble_model_filename = _store_resource(
+        ensemble_model_data, str(manifest_path), "ensemble_model", "Ensemble model", "model"
+    )
+    
+    # Store test data
+    test_filename = _store_resource(
+        test_df, str(manifest_path), "test_data", "Test data", "csv"
+    )
+    
+    features_filename = _store_resource(
+        test_features, str(manifest_path), "test_features", "Test features", "json"
+    )
+    
+    # Make predictions
+    result = predict_ml_model(
+        ml_model_filename=ensemble_model_filename,
+        test_input_filename=test_filename,
+        test_feature_vectors_filename=features_filename,
+        test_smiles_column='smiles',
+        predict_column_name='pred',
+        project_manifest_path=str(manifest_path),
+        output_filename='ensemble_predictions',
+        explanation='Ensemble predictions with uncertainty'
+    )
+    
+    # Check return structure
+    assert result['has_uncertainty'] is True
+    assert result['n_models'] == 1
+    assert result['n_predictions'] == 20
+    
+    # Check columns include uncertainty
+    assert 'pred' in result['columns']
+    assert 'pred_uncertainty' in result['columns']
+    assert 'pred_proba' in result['columns']
+    assert 'pred_proba_uncertainty' in result['columns']
+    
+    # Load and verify output
+    pred_df = _load_resource(str(manifest_path), result['output_filename'])
+    assert 'pred' in pred_df.columns
+    assert 'pred_uncertainty' in pred_df.columns
+    assert 'pred_proba' in pred_df.columns
+    assert 'pred_proba_uncertainty' in pred_df.columns
+    assert len(pred_df) == 20
+    
+    # Verify uncertainty values are non-negative
+    assert (pred_df['pred_uncertainty'] >= 0).all()
+    assert (pred_df['pred_proba_uncertainty'] >= 0).all()
 
 
 def test_predict_ml_model_cv(sample_cv_prediction_data):
@@ -381,6 +474,7 @@ def test_predict_ml_model_cv(sample_cv_prediction_data):
     # Check values
     assert result['n_models'] == 3
     assert result['n_predictions'] == 20
+    assert result['has_uncertainty'] is False  # Standard CV models have no per-model uncertainty
     
     # Check columns - should have per-fold predictions plus aggregates
     assert 'pred_1' in result['columns']
@@ -398,6 +492,188 @@ def test_predict_ml_model_cv(sample_cv_prediction_data):
     assert len(pred_df) == 20
     assert 'pred_mean' in pred_df.columns
     assert 'pred_std' in pred_df.columns
+
+
+def test_predict_ml_model_cv_with_uncertainty(session_workdir):
+    """Test prediction with CV ensemble where each fold uses BayesianEnsemble."""
+    np.random.seed(42)
+    n_samples = 20
+    
+    # Train multiple BayesianEnsemble models for CV
+    from sklearn.datasets import make_classification
+    from molml_mcp.tools.ml.trad_ml.ensembled_models import BayesianEnsemble
+    X_train, y_train = make_classification(n_samples=50, n_features=5, random_state=42)
+    
+    models = []
+    for i in range(3):
+        ensemble_model = BayesianEnsemble(
+            base_estimator=RandomForestClassifier, 
+            ensemble_size=5, 
+            random_state=42+i,
+            n_estimators=3
+        )
+        ensemble_model.fit(X_train, y_train)
+        models.append(ensemble_model)
+    
+    # Create test data
+    test_df = pd.DataFrame({
+        'smiles': [f'MOL_{i}' for i in range(n_samples)]
+    })
+    
+    test_features = {
+        f'MOL_{i}': np.random.randn(5).tolist() 
+        for i in range(n_samples)
+    }
+    
+    # Create manifest
+    manifest_path = session_workdir / "manifest.json"
+    manifest_data = {"resources": []}
+    with open(manifest_path, 'w') as f:
+        json.dump(manifest_data, f)
+    
+    # Store CV models with uncertainty
+    cv_model_data = {
+        "models": models,
+        "model_algorithm": "random_forest_classifier_w_uncertainty",
+        "n_features": 5,
+        "cv_strategy": "kfold"
+    }
+    cv_model_filename = _store_resource(
+        cv_model_data, str(manifest_path), "cv_ensemble_models", "CV ensemble models", "model"
+    )
+    
+    # Store test data
+    test_filename = _store_resource(
+        test_df, str(manifest_path), "cv_test_data", "CV test data", "csv"
+    )
+    
+    features_filename = _store_resource(
+        test_features, str(manifest_path), "cv_test_features", "CV test features", "json"
+    )
+    
+    # Make predictions
+    result = predict_ml_model(
+        ml_model_filename=cv_model_filename,
+        test_input_filename=test_filename,
+        test_feature_vectors_filename=features_filename,
+        test_smiles_column='smiles',
+        predict_column_name='pred',
+        project_manifest_path=str(manifest_path),
+        output_filename='cv_ensemble_predictions',
+        explanation='CV ensemble predictions with uncertainty'
+    )
+    
+    # Check return structure
+    assert result['has_uncertainty'] is True
+    assert result['n_models'] == 3
+    assert result['n_predictions'] == 20
+    
+    # Check columns - should have per-fold predictions, per-fold uncertainties, plus aggregates
+    assert 'pred_1' in result['columns']
+    assert 'pred_1_uncertainty' in result['columns']
+    assert 'pred_2' in result['columns']
+    assert 'pred_2_uncertainty' in result['columns']
+    assert 'pred_3' in result['columns']
+    assert 'pred_3_uncertainty' in result['columns']
+    assert 'pred_mean' in result['columns']
+    assert 'pred_uncertainty_mean' in result['columns']  # Aggregated uncertainty
+    
+    # Load and verify output
+    pred_df = _load_resource(str(manifest_path), result['output_filename'])
+    assert len(pred_df) == 20
+    assert 'pred_mean' in pred_df.columns
+    assert 'pred_uncertainty_mean' in pred_df.columns
+    
+    # Verify uncertainty values are non-negative
+    assert (pred_df['pred_1_uncertainty'] >= 0).all()
+    assert (pred_df['pred_2_uncertainty'] >= 0).all()
+    assert (pred_df['pred_3_uncertainty'] >= 0).all()
+    assert (pred_df['pred_uncertainty_mean'] >= 0).all()
+
+
+def test_predict_ml_model_regressor_with_uncertainty(session_workdir):
+    """Test prediction with BayesianEnsemble regressor."""
+    np.random.seed(42)
+    n_samples = 20
+    
+    # Train a BayesianEnsemble regressor
+    from sklearn.datasets import make_regression
+    from molml_mcp.tools.ml.trad_ml.ensembled_models import BayesianEnsemble
+    X_train, y_train = make_regression(n_samples=50, n_features=5, random_state=42)
+    
+    ensemble_model = BayesianEnsemble(
+        base_estimator=RandomForestRegressor, 
+        ensemble_size=5, 
+        random_state=42,
+        n_estimators=3
+    )
+    ensemble_model.fit(X_train, y_train)
+    
+    # Create test data
+    test_df = pd.DataFrame({
+        'smiles': [f'TEST_{i}' for i in range(n_samples)]
+    })
+    
+    test_features = {
+        f'TEST_{i}': np.random.randn(5).tolist() 
+        for i in range(n_samples)
+    }
+    
+    # Create manifest
+    manifest_path = session_workdir / "manifest.json"
+    manifest_data = {"resources": []}
+    with open(manifest_path, 'w') as f:
+        json.dump(manifest_data, f)
+    
+    # Store ensemble model
+    ensemble_model_data = {
+        "models": [ensemble_model],
+        "model_algorithm": "random_forest_regressor_w_uncertainty",
+        "n_features": 5
+    }
+    ensemble_model_filename = _store_resource(
+        ensemble_model_data, str(manifest_path), "ensemble_regressor", "Ensemble regressor", "model"
+    )
+    
+    # Store test data
+    test_filename = _store_resource(
+        test_df, str(manifest_path), "test_data", "Test data", "csv"
+    )
+    
+    features_filename = _store_resource(
+        test_features, str(manifest_path), "test_features", "Test features", "json"
+    )
+    
+    # Make predictions
+    result = predict_ml_model(
+        ml_model_filename=ensemble_model_filename,
+        test_input_filename=test_filename,
+        test_feature_vectors_filename=features_filename,
+        test_smiles_column='smiles',
+        predict_column_name='pred',
+        project_manifest_path=str(manifest_path),
+        output_filename='regressor_predictions',
+        explanation='Regressor predictions with uncertainty'
+    )
+    
+    # Check return structure
+    assert result['has_uncertainty'] is True
+    assert result['n_models'] == 1
+    assert result['n_predictions'] == 20
+    
+    # Check columns - regressor should have prediction and uncertainty but no proba
+    assert 'pred' in result['columns']
+    assert 'pred_uncertainty' in result['columns']
+    
+    # Load and verify output
+    pred_df = _load_resource(str(manifest_path), result['output_filename'])
+    assert 'pred' in pred_df.columns
+    assert 'pred_uncertainty' in pred_df.columns
+    assert len(pred_df) == 20
+    
+    # Verify uncertainty values are non-negative
+    assert (pred_df['pred_uncertainty'] >= 0).all()
+
 
 
 def test_predict_ml_model_missing_smiles_column(sample_prediction_data):
