@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 
 
-def store_csv_as_dataset(file_path: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
+def store_csv_from_path(file_path: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
     """
     Store a CSV file from a local file path provided by the MCP client.
     
@@ -60,7 +60,7 @@ def store_csv_as_dataset(file_path: str, project_manifest_path: str, filename: s
     }
 
 
-def store_csv_as_dataset_from_text(csv_content: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
+def store_csv_from_text(csv_content: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
     """
     Store CSV data from content provided by the MCP client.
     
@@ -1119,8 +1119,8 @@ def transform_column(
 def get_all_dataset_tools():
     """Return a list of all dataset manipulation tools."""
     return [
-        store_csv_as_dataset,
-        store_csv_as_dataset_from_text,
+        store_csv_from_path,
+        store_csv_from_text,
         get_dataset_head,
         get_dataset_full,
         get_dataset_summary,
