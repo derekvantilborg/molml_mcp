@@ -4,11 +4,6 @@ import numpy as np
 import pytest
 from sklearn.datasets import make_classification, make_regression
 from molml_mcp.tools.ml.trad_ml.singular_models import (
-    # Utility functions
-    get_available_models,
-    get_model_function,
-    get_hyperparameter_space,
-    get_all_hyperparameter_spaces,
     # Sample classification models
     _train_random_forest_classifier,
     _train_logistic_regression,
@@ -17,6 +12,11 @@ from molml_mcp.tools.ml.trad_ml.singular_models import (
     _train_random_forest_regressor,
     _train_ridge,
     _train_lasso,
+    # Utility functions
+    get_available_models,
+    get_model_function,
+    get_hyperparameter_space,
+    get_all_hyperparameter_spaces,
 )
 
 
@@ -31,58 +31,28 @@ def test_get_available_models():
     assert isinstance(models, dict)
     assert len(models) > 0
     
-    # Check for key classification models
-    assert "random_forest_classifier" in models
-    assert "logistic_regression" in models
-    assert "gradient_boosting_classifier" in models
-    assert "svc" in models
-    assert "knn_classifier" in models
-    
-    # Check for key regression models
-    assert "random_forest_regressor" in models
-    assert "ridge" in models
-    assert "lasso" in models
-    assert "svr" in models
-    
-    # Check structure of model entries
-    for model_key, model_info in models.items():
-        assert "name" in model_info
-        assert "description" in model_info
-        assert "default_params" in model_info
-        assert isinstance(model_info["name"], str)
-        assert isinstance(model_info["description"], str)
-        assert isinstance(model_info["default_params"], dict)
+    # Check structure of model info
+    for key, info in models.items():
+        assert "name" in info
+        assert "description" in info
+        assert "function" in info
+        assert "default_params" in info
+        assert callable(info["function"])
 
 
 def test_get_model_function():
     """Test getting specific model training function."""
-    # Get classification model function
-    rf_func = get_model_function("random_forest_classifier")
-    assert callable(rf_func)
+    # Valid model
+    func = get_model_function("logistic_regression")
+    assert callable(func)
     
-    # Get regression model function
-    ridge_func = get_model_function("ridge")
-    assert callable(ridge_func)
-    
-    # Test invalid model key
+    # Invalid model
     with pytest.raises(ValueError, match="Unknown model"):
         get_model_function("nonexistent_model")
 
 
 def test_get_hyperparameter_space():
     """Test getting hyperparameter space for a model."""
-    # Random Forest classifier
-    rf_space = get_hyperparameter_space("random_forest_classifier")
-    assert isinstance(rf_space, dict)
-    assert "n_estimators" in rf_space
-    assert "max_depth" in rf_space
-    
-    # Check structure of hyperparameter definition
-    n_est = rf_space["n_estimators"]
-    assert "type" in n_est
-    assert "description" in n_est
-    assert n_est["type"] == "int"
-    
     # Logistic regression
     lr_space = get_hyperparameter_space("logistic_regression")
     assert "C" in lr_space

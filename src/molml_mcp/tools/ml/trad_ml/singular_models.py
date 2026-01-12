@@ -838,3 +838,125 @@ def _get_sgd_regressor_hyperparams() -> Dict[str, Dict[str, Any]]:
         "alpha": {"type": "float", "range": [1e-6, 0.01], "log_scale": True, "description": "Regularization term"},
         "max_iter": {"type": "int", "range": [100, 5000], "log_scale": False, "description": "Maximum iterations"}
     }
+
+
+# ============================================================================
+# Public API Functions
+# ============================================================================
+
+def get_available_models() -> Dict[str, Any]:
+    """
+    Get dictionary of all available ML models.
+    
+    Returns mapping of model_key -> model_info dict with:
+    - name: Display name
+    - description: Brief description
+    - function: Training function
+    - default_params: Default hyperparameters
+    """
+    return {
+        # Classification models
+        "random_forest_classifier": {
+            "name": "Random Forest Classifier",
+            "description": "Ensemble of decision trees for classification",
+            "function": _train_random_forest_classifier,
+            "default_params": {"n_estimators": 100, "max_depth": None, "min_samples_split": 2}
+        },
+        "decision_tree_classifier": {
+            "name": "Decision Tree Classifier",
+            "description": "Single decision tree for classification",
+            "function": _train_decision_tree_classifier,
+            "default_params": {"max_depth": None, "min_samples_split": 2, "criterion": "gini"}
+        },
+        "logistic_regression": {
+            "name": "Logistic Regression",
+            "description": "Linear model for binary/multiclass classification",
+            "function": _train_logistic_regression,
+            "default_params": {"C": 1.0, "penalty": "l2", "max_iter": 1000}
+        },
+        "gradient_boosting_classifier": {
+            "name": "Gradient Boosting Classifier",
+            "description": "Boosted ensemble of weak learners",
+            "function": _train_gradient_boosting_classifier,
+            "default_params": {"n_estimators": 100, "learning_rate": 0.1, "max_depth": 3}
+        },
+        "svc": {
+            "name": "Support Vector Classifier",
+            "description": "SVM for classification with kernel methods",
+            "function": _train_svc,
+            "default_params": {"C": 1.0, "kernel": "rbf", "gamma": "scale"}
+        },
+        "knn_classifier": {
+            "name": "K-Nearest Neighbors Classifier",
+            "description": "Instance-based classification",
+            "function": _train_knn_classifier,
+            "default_params": {"n_neighbors": 5, "weights": "uniform", "metric": "minkowski"}
+        },
+        # Regression models
+        "random_forest_regressor": {
+            "name": "Random Forest Regressor",
+            "description": "Ensemble of decision trees for regression",
+            "function": _train_random_forest_regressor,
+            "default_params": {"n_estimators": 100, "max_depth": None, "min_samples_split": 2}
+        },
+        "decision_tree_regressor": {
+            "name": "Decision Tree Regressor",
+            "description": "Single decision tree for regression",
+            "function": _train_decision_tree_regressor,
+            "default_params": {"max_depth": None, "min_samples_split": 2, "criterion": "squared_error"}
+        },
+        "ridge": {
+            "name": "Ridge Regression",
+            "description": "Linear regression with L2 regularization",
+            "function": _train_ridge,
+            "default_params": {"alpha": 1.0}
+        },
+        "lasso": {
+            "name": "Lasso Regression",
+            "description": "Linear regression with L1 regularization",
+            "function": _train_lasso,
+            "default_params": {"alpha": 1.0, "max_iter": 1000}
+        },
+        "svr": {
+            "name": "Support Vector Regressor",
+            "description": "SVM for regression with kernel methods",
+            "function": _train_svr,
+            "default_params": {"C": 1.0, "kernel": "rbf", "gamma": "scale"}
+        },
+    }
+
+
+def get_model_function(model_key: str):
+    """Get training function for a specific model."""
+    models = get_available_models()
+    if model_key not in models:
+        raise ValueError(f"Unknown model: {model_key}. Available: {list(models.keys())}")
+    return models[model_key]["function"]
+
+
+def get_hyperparameter_space(model_key: str) -> Dict[str, Dict[str, Any]]:
+    """Get hyperparameter space definition for a model."""
+    hyperparam_getters = {
+        "random_forest_classifier": _get_random_forest_classifier_hyperparams,
+        "decision_tree_classifier": _get_decision_tree_classifier_hyperparams,
+        "logistic_regression": _get_logistic_regression_hyperparams,
+        "gradient_boosting_classifier": _get_gradient_boosting_classifier_hyperparams,
+        "svc": _get_svc_hyperparams,
+        "knn_classifier": _get_knn_classifier_hyperparams,
+        "random_forest_regressor": _get_random_forest_regressor_hyperparams,
+        "decision_tree_regressor": _get_decision_tree_regressor_hyperparams,
+        "ridge": _get_ridge_hyperparams,
+        "lasso": _get_lasso_hyperparams,
+        "svr": _get_svr_hyperparams,
+    }
+    
+    if model_key not in hyperparam_getters:
+        raise ValueError(f"Unknown model: {model_key}. Available: {list(hyperparam_getters.keys())}")
+    
+    return hyperparam_getters[model_key]()
+
+
+def get_all_hyperparameter_spaces() -> Dict[str, Dict[str, Dict[str, Any]]]:
+    """Get all hyperparameter spaces for all models."""
+    models = get_available_models()
+    return {key: get_hyperparameter_space(key) for key in models.keys()}

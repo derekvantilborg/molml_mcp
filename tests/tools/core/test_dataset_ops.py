@@ -4,9 +4,9 @@ import pytest
 from pathlib import Path
 
 
-def test_store_csv_as_dataset(session_workdir, request):
+def test_store_csv_from_path(session_workdir, request):
     """Test storing CSV file as dataset."""
-    from molml_mcp.tools.core.dataset_ops import store_csv_as_dataset
+    from molml_mcp.tools.core.dataset_ops import store_csv_from_path
     from molml_mcp.infrastructure.resources import _load_resource, create_project_manifest
     
     # Create test-specific subdirectory
@@ -22,7 +22,7 @@ def test_store_csv_as_dataset(session_workdir, request):
     df_original.to_csv(csv_path, index=False)
     
     # Store as dataset
-    result = store_csv_as_dataset(
+    result = store_csv_from_path(
         file_path=str(csv_path),
         project_manifest_path=manifest_path,
         filename="test_data",
@@ -42,9 +42,9 @@ def test_store_csv_as_dataset(session_workdir, request):
     assert df_loaded.equals(df_original)
 
 
-def test_store_csv_as_dataset_from_text(session_workdir, request):
+def test_store_csv_from_text(session_workdir, request):
     """Test storing CSV text as dataset."""
-    from molml_mcp.tools.core.dataset_ops import store_csv_as_dataset_from_text
+    from molml_mcp.tools.core.dataset_ops import store_csv_from_text
     from molml_mcp.infrastructure.resources import _load_resource, create_project_manifest
     
     # Create test-specific subdirectory
@@ -58,7 +58,7 @@ def test_store_csv_as_dataset_from_text(session_workdir, request):
     csv_text = "A,B\n1,4\n2,5\n3,6"
     
     # Store as dataset
-    result = store_csv_as_dataset_from_text(
+    result = store_csv_from_text(
         csv_content=csv_text,
         project_manifest_path=manifest_path,
         filename="test_data_text",
@@ -657,6 +657,90 @@ def test_transform_column(session_workdir, request):
     # Verify pKi values: Ki=1nM -> pKi=9, Ki=10nM -> pKi=8, Ki=100nM -> pKi=7, Ki=1000nM -> pKi=6
     expected_pKi = [9.0, 8.0, 7.0, 6.0]
     assert np.allclose(df_result2["pKi"].values, expected_pKi, rtol=1e-9)
+
+
+def test_combine_datasets_vertical(session_workdir, request):
+    """Test combining datasets vertically."""
+    from molml_mcp.infrastructure.resources import _store_resource, _load_resource, create_project_manifest
+    from molml_mcp.tools.core.dataset_ops import combine_datasets_vertical
+    
+    # Create test-specific subdirectory
+    test_dir = session_workdir / request.node.name
+    test_dir.mkdir(exist_ok=True)
+    create_project_manifest(str(test_dir), "test")
+    
+    manifest_path = str(test_dir / "test_manifest.json")
+    
+    # Store two test datasets
+    df1 = pd.DataFrame({"smiles": ["CCO", "CCC"], "label": [0, 1]})
+    df2 = pd.DataFrame({"smiles": ["CCCO", "CCCC"], "label": [1, 0]})
+    
+    filename1 = _store_resource(df1, manifest_path, "dataset1", "First dataset", "csv")
+    filename2 = _store_resource(df2, manifest_path, "dataset2", "Second dataset", "csv")
+    
+    # Combine datasets (keep all)
+    result = combine_datasets_vertical(
+        input_filenames=[filename1, filename2],
+        project_manifest_path=manifest_path,
+        output_filename="combined",
+        explanation="Combined datasets",
+        handle_duplicates='keep_all',
+        verify_columns=True
+    )
+    
+    assert "output_filename" in result
+    assert result["n_rows"] == 4
+    assert result["n_rows_per_input"][filename1] == 2
+    assert result["n_rows_per_input"][filename2] == 2
+    assert result["n_duplicates_dropped"] == 0
+    assert set(result["columns"]) == {"smiles", "label"}
+    
+    # Verify combined data
+    df_combined = _load_resource(manifest_path, result["output_filename"])
+    assert len(df_combined) == 4
+    assert list(df_combined["smiles"]) == ["CCO", "CCC", "CCCO", "CCCC"]
+    
+    # Test drop_duplicates
+    df3 = pd.DataFrame({"smiles": ["CCO", "CCCCO"], "label": [0, 1]})  # CCO is duplicate
+    filename3 = _store_resource(df3, manifest_path, "dataset3", "Third dataset", "csv")
+    
+    result2 = combine_datasets_vertical(
+        input_filenames=[filename1, filename3],
+        project_manifest_path=manifest_path,
+        output_filename="combined_dedup",
+        explanation="Combined with deduplication",
+        handle_duplicates='drop_duplicates'
+    )
+    
+    assert result2["n_rows"] == 3  # 4 rows - 1 duplicate
+    assert result2["n_duplicates_dropped"] == 1
+    
+    # Test column mismatch error
+    df4 = pd.DataFrame({"smiles": ["CCCCCC"], "activity": [0.5]})  # Different columns
+    filename4 = _store_resource(df4, manifest_path, "dataset4", "Fourth dataset", "csv")
+    
+    with pytest.raises(ValueError, match="Column mismatch"):
+        combine_datasets_vertical(
+            input_filenames=[filename1, filename4],
+            project_manifest_path=manifest_path,
+            output_filename="combined_fail",
+            explanation="Should fail",
+            verify_columns=True
+        )
+    
+    # Test with verify_columns=False (should work with NaN fill)
+    result3 = combine_datasets_vertical(
+        input_filenames=[filename1, filename4],
+        project_manifest_path=manifest_path,
+        output_filename="combined_mixed",
+        explanation="Combined with mismatched columns",
+        verify_columns=False
+    )
+    
+    assert result3["n_rows"] == 3
+    df_mixed = _load_resource(manifest_path, result3["output_filename"])
+    assert "activity" in df_mixed.columns
+    assert "label" in df_mixed.columns
 
 
 def test_get_all_dataset_tools():

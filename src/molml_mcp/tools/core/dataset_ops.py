@@ -1115,6 +1115,105 @@ def transform_column(
     }
 
 
+def combine_datasets_vertical(
+    input_filenames: list[str],
+    project_manifest_path: str,
+    output_filename: str,
+    explanation: str,
+    handle_duplicates: str = 'keep_all',
+    verify_columns: bool = True
+) -> dict:
+    """
+    Stack multiple datasets vertically (concatenate rows). Call this to combine datasets.
+    
+    Use this tool when user says:
+    - "combine these datasets"
+    - "merge dataset A and B"
+    - "stack these files together"
+    - "append dataset B to dataset A"
+    
+    Parameters
+    ----------
+    input_filenames : list[str]
+        List of dataset filenames to combine (e.g., ["data1_ABC123.csv", "data2_DEF456.csv"])
+    project_manifest_path : str
+        Absolute path to manifest.json
+    output_filename : str
+        Name for combined dataset, no extension (e.g., "combined_data")
+    explanation : str
+        Brief description (e.g., "Combined training and validation sets")
+    handle_duplicates : str, default='keep_all'
+        How to handle duplicate rows:
+        - 'keep_all': Keep all rows including duplicates
+        - 'drop_duplicates': Remove duplicate rows after combining
+        - 'raise_error': Raise error if duplicates found
+    verify_columns : bool, default=True
+        If True, verify all datasets have same column names. If False, missing columns filled with NaN.
+    
+    Returns
+    -------
+    dict
+        {
+            "output_filename": str,
+            "n_rows": int,              # Total rows in combined dataset
+            "n_rows_per_input": dict,   # Rows from each input file
+            "n_duplicates_dropped": int,  # If handle_duplicates='drop_duplicates'
+            "columns": list[str],
+            "preview": list[dict]
+        }
+    """
+    import pandas as pd
+    
+    if len(input_filenames) < 2:
+        raise ValueError("Must provide at least 2 datasets to combine.")
+    
+    # Load all datasets
+    dfs = []
+    row_counts = {}
+    for fname in input_filenames:
+        df = _load_resource(project_manifest_path, fname)
+        dfs.append(df)
+        row_counts[fname] = len(df)
+    
+    # Verify columns if requested
+    if verify_columns:
+        first_cols = set(dfs[0].columns)
+        for i, df in enumerate(dfs[1:], start=1):
+            if set(df.columns) != first_cols:
+                raise ValueError(
+                    f"Column mismatch: {input_filenames[0]} has {list(dfs[0].columns)}, "
+                    f"but {input_filenames[i]} has {list(df.columns)}"
+                )
+    
+    # Combine datasets
+    combined_df = pd.concat(dfs, ignore_index=True)
+    n_total_before = len(combined_df)
+    
+    # Handle duplicates
+    n_duplicates_dropped = 0
+    if handle_duplicates == 'drop_duplicates':
+        combined_df = combined_df.drop_duplicates()
+        n_duplicates_dropped = n_total_before - len(combined_df)
+    elif handle_duplicates == 'raise_error':
+        n_duplicates = combined_df.duplicated().sum()
+        if n_duplicates > 0:
+            raise ValueError(f"Found {n_duplicates} duplicate rows. Set handle_duplicates='keep_all' or 'drop_duplicates'")
+    elif handle_duplicates != 'keep_all':
+        raise ValueError(f"Invalid handle_duplicates='{handle_duplicates}'. Must be 'keep_all', 'drop_duplicates', or 'raise_error'")
+    
+    # Store result
+    output_filename_stored = _store_resource(combined_df, project_manifest_path, output_filename, explanation, 'csv')
+    
+    return {
+        "output_filename": output_filename_stored,
+        "n_rows": len(combined_df),
+        "n_rows_per_input": row_counts,
+        "n_duplicates_dropped": n_duplicates_dropped,
+        "columns": list(combined_df.columns),
+        "preview": combined_df.head(5).to_dict(orient="records"),
+    }
+
+
 def get_all_dataset_tools():
     """Return a list of all dataset manipulation tools."""
     return [
@@ -1130,5 +1229,6 @@ def get_all_dataset_tools():
         drop_empty_rows,
         drop_columns,
         keep_columns,
-        transform_column
+        transform_column,
+        combine_datasets_vertical
     ]
