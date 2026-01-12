@@ -12,36 +12,23 @@ from typing import Any, Dict, List, Optional
 
 def store_csv_from_path(file_path: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
     """
-    Import a CSV file from disk. Call this when the user provides a CSV file path.
-    
-    Use this tool when user says:
-    - "load /path/to/data.csv"
-    - "import this CSV file"
-    - "read my dataset at /Users/..."
-    - ANY time a CSV file path is mentioned
-    
-    If no project manifest exists yet, create one with create_project_manifest first.
+    Import a CSV file from disk and add it into the project manifest. Call this when the user provided a CSV file path.
     
     Parameters
     ----------
     file_path : str
-        Absolute path to CSV file (e.g., "/Users/name/data.csv")
+        Absolute path to CSV file
     project_manifest_path : str
-        Absolute path to manifest.json (e.g., "/Users/name/project/manifest.json")
+        Absolute path to manifest.json
     filename : str
-        Name for stored dataset, no extension (e.g., "my_data")
+        Name for stored dataset (no extension)
     explanation : str
-        Brief description (e.g., "Training data from ChEMBL")
+        Brief description
 
     Returns
     -------
     dict
-        {
-            "output_filename": str,  # Use this in all subsequent operations
-            "n_rows": int,
-            "columns": list[str],
-            "preview": list[dict]
-        }
+        Contains output_filename, n_rows, columns, preview
     """
     import pandas as pd
 
@@ -59,25 +46,23 @@ def store_csv_from_path(file_path: str, project_manifest_path: str, filename: st
 
 def store_csv_from_text(csv_content: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
     """
-    Import CSV data from text content. Call this when user provides CSV as string.
-    
-    If no project manifest exists yet, create one with create_project_manifest first.
+    Import CSV data from text string.
     
     Parameters
     ----------
     csv_content : str
-        The actual CSV file content as a string. We will use StringIO, so the content should be formatted as a valid CSV.
+        CSV content as string
     project_manifest_path : str
-        Path to the project manifest file for tracking this resource.
+        Path to manifest.json
     filename : str
-        Base filename for the stored resource (without extension).
+        Name for stored dataset (no extension)
     explanation : str
-        Brief description of what this dataset contains.
+        Brief description
     
     Returns
     -------
     dict
-        Dataset metadata
+        Contains output_filename, n_rows, columns, preview
     """
     import pandas as pd
     from io import StringIO
@@ -97,38 +82,21 @@ def store_csv_from_text(csv_content: str, project_manifest_path: str, filename: 
 
 def get_dataset_head(project_manifest_path: str, input_filename: str, n_rows: int = 10) -> dict:
     """
-    Get the first n rows of a dataset for quick inspection.
-    
-    This is useful for quickly viewing the top of a dataset without
-    loading the entire content. Perfect for initial data exploration.
+    Get the first n rows of a dataset.
 
     Parameters
     ----------
     project_manifest_path : str
-        Path to the project manifest file.
+        Path to manifest.json
     input_filename : str
-        Base filename of the dataset resource.
+        Dataset filename
     n_rows : int, default=10
-        Number of rows to return from the top of the dataset.
+        Number of rows to return
 
     Returns
     -------
     dict
-        {
-            "input_filename": str,    # original resource identifier
-            "n_rows_returned": int,   # number of rows returned
-            "n_rows_total": int,      # total rows in dataset
-            "columns": list[str],     # column names
-            "rows": list[dict],       # first n rows as records
-        }
-
-    Examples
-    --------
-    # Get first 10 rows (default)
-    get_dataset_head(manifest_path, 'my_dataset')
-    
-    # Get first 20 rows
-    get_dataset_head(manifest_path, 'my_dataset', n_rows=20)
+        Contains input_filename, n_rows_returned, n_rows_total, columns, rows
     """
     import pandas as pd
     
@@ -149,44 +117,21 @@ def get_dataset_head(project_manifest_path: str, input_filename: str, n_rows: in
 
 def get_dataset_full(project_manifest_path: str, input_filename: str, max_rows: int = 10000) -> dict:
     """
-    Get the entire dataset content.
-    
-    WARNING: This returns ALL rows in the dataset, which can be very large.
-    Use with caution on large datasets. A safety limit of max_rows is enforced.
+    Get entire dataset content (up to max_rows limit). WARNING: may be large!
 
     Parameters
     ----------
     project_manifest_path : str
-        Path to the project manifest file.
+        Path to manifest.json
     input_filename : str
-        Base filename of the dataset resource.
+        Dataset filename
     max_rows : int, default=10000
-        Maximum number of rows to return (safety limit to prevent overwhelming output).
+        Maximum rows to return
 
     Returns
     -------
     dict
-        {
-            "input_filename": str,    # original resource identifier
-            "n_rows_returned": int,   # number of rows returned
-            "n_rows_total": int,      # total rows in dataset
-            "columns": list[str],     # column names
-            "rows": list[dict],       # all rows (or first max_rows) as records
-            "truncated": bool,        # True if dataset was truncated
-        }
-
-    Examples
-    --------
-    # Get entire dataset (up to 10000 rows)
-    get_dataset_full(manifest_path, 'my_dataset')
-    
-    # Get entire dataset with higher limit
-    get_dataset_full(manifest_path, 'my_dataset', max_rows=50000)
-    
-    Notes
-    -----
-    For large datasets, consider using get_dataset_head() or inspect_dataset_rows()
-    with filter_condition instead of loading the entire dataset.
+        Contains input_filename, n_rows_returned, n_rows_total, columns, rows, truncated
     """
     import pandas as pd
     
@@ -209,70 +154,22 @@ def get_dataset_full(project_manifest_path: str, input_filename: str, max_rows: 
 
 def get_dataset_summary(project_manifest_path: str, input_filename: str, columns: list[str] | None = None) -> dict:
     """
-    Get a comprehensive summary of a dataset, similar to R's summary() function.
-    
-    Provides statistics for each column based on its data type:
-    - Numeric columns: min, max, mean, median, std, count, n_missing
-    - Non-numeric columns: data type, unique count, most common value, n_missing
+    Get statistical summary of dataset columns.
 
     Parameters
     ----------
     project_manifest_path : str
-        Path to the project manifest file.
+        Path to manifest.json
     input_filename : str
-        Base filename of the dataset resource.
-    columns : list[str] | None, optional
-        List of specific column names to summarize. If None, all columns are summarized.
-        This is useful for large dataframes with many columns where you only want to
-        examine a subset of columns to reduce computation time and output size.
+        Dataset filename
+    columns : list[str] | None
+        Specific columns to summarize (None = all)
 
     Returns
     -------
     dict
-        {
-            "resource_id": str,           # original resource identifier
-            "n_rows": int,                # total rows in dataset
-            "n_columns": int,             # total columns in dataset
-            "n_columns_summarized": int,  # number of columns included in summary
-            "column_summaries": dict,     # summary for each column
-        }
-        
-        Each column_summary contains:
-        - For numeric columns:
-            {
-                "dtype": str,
-                "count": int,      # non-null count
-                "n_missing": int,  # null count
-                "min": float,
-                "max": float,
-                "mean": float,
-                "median": float,
-                "std": float,
-            }
-        - For non-numeric columns:
-            {
-                "dtype": str,
-                "count": int,           # non-null count
-                "n_missing": int,       # null count
-                "n_unique": int,        # number of unique values
-                "top_value": any,       # most common value
-                "top_freq": int,        # frequency of most common value
-            }
-
-    Examples
-    --------
-    # Get summary statistics for all columns
-    get_dataset_summary(rid)
-    
-    # Get summary for specific columns only (useful for large dataframes)
-    get_dataset_summary(rid, columns=['TPSA', 'MolWt', 'label'])
-    
-    Notes
-    -----
-    This function is useful for initial data exploration and understanding
-    the distribution and types of data in each column. For large dataframes
-    with many columns, use the `columns` parameter to summarize only the
-    columns of interest, which improves performance and reduces output size.
+        Contains input_filename, n_rows, n_columns, n_columns_summarized, column_summaries
+        (numeric: min/max/mean/median/std; non-numeric: n_unique/top_value/top_freq)
     """
     import pandas as pd
     import numpy as np
@@ -376,104 +273,32 @@ def get_dataset_summary(project_manifest_path: str, input_filename: str, columns
 def inspect_dataset_rows(project_manifest_path: str, input_filename: str, row_indices: list[int] | None = None, 
                          filter_condition: str | None = None, max_rows: int = 100) -> dict:
     """
-    Inspect or filter rows from a dataset by index or complex conditions.
-    
-    This is the recommended tool for filtering datasets with numeric comparisons,
-    complex conditions, or when you need to examine specific rows. It supports
-    full pandas query syntax including >, <, >=, <=, ==, !=, and logical operators.
-    
-    Use this tool instead of keep_from_dataset/drop_from_dataset when you need:
-    - Numeric comparisons (e.g., "TPSA > 20", "MolWt < 500")
-    - Range filters (e.g., "200 <= MolWt <= 600")
-    - Multiple conditions (e.g., "TPSA > 20 and MolWt < 400")
-    - Null value checks (e.g., "column_name.isnull()")
+    Inspect rows by index or pandas query filter (supports >, <, ==, and, or).
 
     Parameters
     ----------
     project_manifest_path : str
-        Path to the project manifest file.
+        Path to manifest.json
     input_filename : str
-        Base filename of the dataset resource.
+        Dataset filename
     row_indices : list[int] | None
-        List of row indices (0-based) to retrieve. If provided, filter_condition is ignored.
+        Row indices to retrieve (0-based)
     filter_condition : str | None
-        Pandas query string to filter rows. USE BACKTICKS AROUND COLUMN NAMES WITH SPACES OR SPECIAL CHARS.
-        
-        CRITICAL SYNTAX RULES:
-        - Column names: Use backticks for spaces/special chars: `column name` or `comments_after_salt_removal`
-        - String values: Use DOUBLE quotes inside the filter string: column == "value"
-        - The entire filter_condition should be a single string
-        - Operators: >, <, >=, <=, ==, != (use == for equality, not single =)
-        - Logic: and, or, not (lowercase required)
-        
-        Supported patterns:
-        - Numeric comparison: "TPSA > 20" or "MolWt <= 500.5"
-        - Range: "200 <= MolWt <= 600" (chained comparison)
-        - Equality: "label == 1" or 'status == "active"' (note quotes)
-        - Null checks: "column_name.isnull()" or "column_name.notnull()"
-        - Multiple conditions: "TPSA > 20 and MolWt < 400"
-        - Negation: "not (TPSA > 100)" or "status != \"failed\""
-        
-        COMMON MISTAKES TO AVOID:
-        - ❌ "column = value" → ✅ "column == value" (use double ==)
-        - ❌ "column == 'value'" → ✅ 'column == "value"' (use double quotes for strings)
-        - ❌ "TPSA > 20 AND MolWt < 500" → ✅ "TPSA > 20 and MolWt < 500" (lowercase 'and')
-        - ❌ "column with spaces > 10" → ✅ "`column with spaces` > 10" (use backticks)
-        
+        Pandas query string (e.g., "TPSA > 20 and MolWt < 500", 'status == "active"')
+        Use backticks for columns with spaces: `column name`
     max_rows : int, default=100
-        Maximum number of rows to return (safety limit to prevent large outputs).
+        Maximum rows to return
 
     Returns
     -------
     dict
-        {
-            "resource_id": str,          # original resource identifier
-            "n_rows_returned": int,      # number of rows matching condition
-            "n_rows_total": int,         # total rows in dataset
-            "columns": list[str],        # column names
-            "rows": list[dict],          # retrieved rows as records
-            "selection_method": str,     # "indices" or "filter"
-        }
-
+        Contains input_filename, n_rows_returned, n_rows_total, columns, rows, selection_method
+    
     Examples
     --------
-    # Numeric comparison (simple)
-    inspect_dataset_rows(rid, filter_condition="TPSA > 20")
-    inspect_dataset_rows(rid, filter_condition="MolWt <= 500.5")
-    
-    # Range filter (chained comparison)
-    inspect_dataset_rows(rid, filter_condition="200 <= MolWt <= 600")
-    
-    # Multiple numeric conditions
-    inspect_dataset_rows(rid, filter_condition="TPSA > 20 and MolLogP < 5")
-    inspect_dataset_rows(rid, filter_condition="TPSA > 20 or MolWt > 500")
-    
-    # String value comparison (note the double quotes around "Passed")
-    inspect_dataset_rows(rid, filter_condition='comments_after_canonicalization == "Passed"')
-    inspect_dataset_rows(rid, filter_condition='status != "Failed"')
-    
-    # Column names with spaces or special characters (use backticks)
-    inspect_dataset_rows(rid, filter_condition='`comments after cleaning` == "Passed"')
-    
-    # Null value checks
-    inspect_dataset_rows(rid, filter_condition="smiles_after_canonicalization.isnull()")
-    inspect_dataset_rows(rid, filter_condition="label.notnull()")
-    
-    # Complex conditions
-    inspect_dataset_rows(rid, filter_condition="TPSA > 20 and MolWt < 400 and label == 1")
-    inspect_dataset_rows(rid, filter_condition='(TPSA > 100 or MolWt > 500) and status == "active"')
-    
-    # Inspect specific rows by index (alternative to filter_condition)
-    inspect_dataset_rows(rid, row_indices=[5, 10, 15, 20])
-    
-    Notes
-    -----
-    This tool returns matching rows for inspection but does NOT create a new
-    filtered dataset. To create a new filtered dataset, you would need to use
-    a different workflow or tool.
-    
-    The filter_condition uses pandas.DataFrame.query() syntax. For detailed
-    documentation, see: https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.query.html
+    inspect_dataset_rows(path, fname, filter_condition="TPSA > 20")
+    inspect_dataset_rows(path, fname, filter_condition='status == "active"')
+    inspect_dataset_rows(path, fname, row_indices=[0, 5, 10])
     """
     import pandas as pd
     
@@ -516,70 +341,32 @@ def inspect_dataset_rows(project_manifest_path: str, input_filename: str, row_in
 
 def drop_from_dataset(input_filename: str, column_name: str, condition: str, project_manifest_path: str, output_filename: str, explanation: str) -> dict:
     """
-    Drop rows from a dataset based on SIMPLE conditions (exact match or null check).
-    
-    This tool only supports TWO condition types:
-    1. Drop rows with null/missing values: condition="is None" (EXACT STRING)
-    2. Drop rows matching EXACT string value: condition="Passed" or condition="Failed"
-    
-    IMPORTANT: This is NOT pandas query syntax. Do NOT include == or quotes for exact matches.
-    Just provide the literal string value to match.
-    
-    For numeric comparisons (>, <, >=, <=) or complex conditions, use
-    inspect_dataset_rows() with filter_condition instead.
+    Drop rows by exact match or null check. For complex filters, use inspect_dataset_rows().
 
     Parameters
     ----------
     input_filename : str
-        Base filename of the input dataset resource.
+        Input dataset filename
     column_name : str
-        Name of the column to check.
+        Column to check
     condition : str
-        EITHER:
-        - "is None" (EXACT STRING, no quotes) - drops rows where column is null/missing
-        - "exact_value" (just the value, no == or quotes) - drops rows matching this EXACT value
-        
-        CRITICAL: Do NOT use pandas query syntax here:
-        - ❌ '== "Passed"' → ✅ "Passed"
-        - ❌ "== Failed" → ✅ "Failed"
-        - ❌ 'is None' (with quotes around None) → ✅ "is None" (literal string)
+        Either "is None" (drops nulls) or exact value to match (e.g., "Failed")
     project_manifest_path : str
-        Path to the project manifest file for tracking this resource.
+        Path to manifest.json
     output_filename : str
-        Base filename for the stored resource (without extension).
+        Output dataset name (no extension)
     explanation : str
-        Brief description of what filtering was applied.
+        Brief description
 
     Returns
     -------
     dict
-        {
-            "resource_id": str,        # new dataset without dropped rows
-            "n_rows": int,             # rows remaining after drop
-            "columns": list[str],      # column names
-            "preview": list[dict],     # first 5 rows
-        }
+        Contains output_filename, n_rows, columns, preview
     
     Examples
     --------
-    # Drop rows with null/missing values (use exact string "is None")
-    drop_from_dataset(rid, "smiles_after_canonicalization", "is None")
-    
-    # Drop rows where column value is exactly "Failed" (no == needed)
-    drop_from_dataset(rid, "validation_status", "Failed")
-    
-    # Drop rows where comment is exactly "Failed: Invalid SMILES string"
-    drop_from_dataset(rid, "comments", "Failed: Invalid SMILES string")
-    
-    # Drop rows where status is exactly "Passed"
-    drop_from_dataset(rid, "pains_screening", "Passed")
-    
-    Notes
-    -----
-    - This tool does EXACT string matching, not pattern matching
-    - For numeric filtering (e.g., "TPSA > 20"), use inspect_dataset_rows() instead
-    - For complex conditions, use inspect_dataset_rows() with filter_condition
-    - The condition parameter is NOT pandas query syntax - just provide the literal value
+    drop_from_dataset(fname, "status", "Failed", path, "cleaned", "Dropped failed rows")
+    drop_from_dataset(fname, "smiles", "is None", path, "no_nulls", "Dropped null SMILES")
     """
     import pandas as pd
     
@@ -616,70 +403,32 @@ def drop_from_dataset(input_filename: str, column_name: str, condition: str, pro
 
 def keep_from_dataset(input_filename: str, column_name: str, condition: str, project_manifest_path: str, output_filename: str, explanation: str) -> dict:
     """
-    Keep only rows from a dataset based on SIMPLE conditions (exact match or null check).
-    
-    This tool only supports TWO condition types:
-    1. Keep rows with null/missing values: condition="is None" (EXACT STRING)
-    2. Keep rows matching EXACT string value: condition="Passed" or condition="active"
-    
-    IMPORTANT: This is NOT pandas query syntax. Do NOT include == or quotes for exact matches.
-    Just provide the literal string value to match.
-    
-    For numeric comparisons (>, <, >=, <=) or complex conditions, use
-    inspect_dataset_rows() with filter_condition instead.
+    Keep rows by exact match or null check. For complex filters, use inspect_dataset_rows().
 
     Parameters
     ----------
     input_filename : str
-        Base filename of the input dataset resource.
+        Input dataset filename
     column_name : str
-        Name of the column to check.
+        Column to check
     condition : str
-        EITHER:
-        - "is None" (EXACT STRING, no quotes) - keeps rows where column is null/missing
-        - "exact_value" (just the value, no == or quotes) - keeps rows matching this EXACT value
-        
-        CRITICAL: Do NOT use pandas query syntax here:
-        - ❌ '== "Passed"' → ✅ "Passed"
-        - ❌ "== active" → ✅ "active"
-        - ❌ 'is None' (with quotes around None) → ✅ "is None" (literal string)
+        Either "is None" (keeps nulls) or exact value to match (e.g., "Passed")
     project_manifest_path : str
-        Path to the project manifest file for tracking this resource.
+        Path to manifest.json
     output_filename : str
-        Base filename for the stored resource (without extension).
+        Output dataset name (no extension)
     explanation : str
-        Brief description of what filtering was applied.
+        Brief description
 
     Returns
     -------
     dict
-        {
-            "resource_id": str,        # new dataset with only kept rows
-            "n_rows": int,             # rows remaining after filter
-            "columns": list[str],      # column names
-            "preview": list[dict],     # first 5 rows
-        }
+        Contains output_filename, n_rows, columns, preview
     
     Examples
     --------
-    # Keep only rows with successful canonicalization (use exact string "Passed")
-    keep_from_dataset(rid, "comments_after_canonicalization", "Passed")
-    
-    # Keep only rows where status is exactly "active" (no == needed)
-    keep_from_dataset(rid, "status", "active")
-    
-    # Keep only rows with null/missing labels for review
-    keep_from_dataset(rid, "label", "is None")
-    
-    # Keep only PAINS-free molecules (where screening result is exactly "Passed")
-    keep_from_dataset(rid, "pains_screening", "Passed")
-    
-    Notes
-    -----
-    - This tool does EXACT string matching, not pattern matching
-    - For numeric filtering (e.g., "TPSA > 20"), use inspect_dataset_rows() instead
-    - For complex conditions, use inspect_dataset_rows() with filter_condition
-    - The condition parameter is NOT pandas query syntax - just provide the literal value
+    keep_from_dataset(fname, "status", "Passed", path, "passed_only", "Keep passed rows")
+    keep_from_dataset(fname, "label", "is None", path, "unlabeled", "Keep unlabeled rows")
     """
     import pandas as pd
     
@@ -716,26 +465,25 @@ def keep_from_dataset(input_filename: str, column_name: str, condition: str, pro
 
 def drop_duplicate_rows(input_filename: str, subset_columns: list[str] | None, project_manifest_path: str, output_filename: str, explanation: str) -> dict:
     """
-    Remove duplicate rows from a dataset based on specified subset of columns.
+    Remove duplicate rows based on column subset (None = all columns).
 
     Parameters
     ----------
     input_filename : str
-        Base filename of the input dataset resource.
+        Input dataset filename
     subset_columns : list[str] | None
-        List of column names to consider for identifying duplicates.
-        If None, all columns are used to identify duplicates.
+        Columns to check for duplicates (None = all)
     project_manifest_path : str
-        Path to the project manifest file for tracking this resource.
+        Path to manifest.json
     output_filename : str
-        Base filename for the stored resource (without extension).
+        Output dataset name (no extension)
     explanation : str
-        Brief description of the deduplication performed.
+        Brief description
 
     Returns
     -------
     dict
-        Updated dataset information after removing duplicate rows.
+        Contains output_filename, n_rows_before, n_rows_after, columns, preview
     """
     import pandas as pd
 
@@ -761,23 +509,23 @@ def drop_duplicate_rows(input_filename: str, subset_columns: list[str] | None, p
 
 def drop_empty_rows(input_filename: str, project_manifest_path: str, output_filename: str, explanation: str) -> dict:
     """
-    Remove rows from a dataset that are completely empty (all columns are null).
+    Remove rows where all columns are null.
 
     Parameters
     ----------
     input_filename : str
-        Base filename of the input dataset resource.
+        Input dataset filename
     project_manifest_path : str
-        Path to the project manifest file for tracking this resource.
+        Path to manifest.json
     output_filename : str
-        Base filename for the stored resource (without extension).
+        Output dataset name (no extension)
     explanation : str
-        Brief description of the cleaning performed.
+        Brief description
 
     Returns
     -------
     dict
-        Updated dataset information after removing empty rows.
+        Contains output_filename, n_rows_before, n_rows_after, columns, preview
     """
     import pandas as pd
 
@@ -804,81 +552,25 @@ def drop_columns(
     explanation: str = 'Dropped specified columns from dataset'
 ) -> dict:
     """
-    Drop specified columns from a dataset and save as a new CSV.
-    
-    Removes one or more columns from a dataset and creates a new resource with
-    the remaining columns. This is useful for removing intermediate processing
-    columns, comment columns, or any other columns that are no longer needed.
+    Drop specified columns from dataset.
 
     Parameters
     ----------
     input_filename : str
-        Base filename of the input dataset resource.
+        Input dataset filename
     columns_to_drop : list[str]
-        List of column names to drop from the dataset.
+        Columns to remove
     project_manifest_path : str
-        Path to the project manifest file for tracking this resource.
+        Path to manifest.json
     output_filename : str
-        Base filename for the stored resource (without extension).
+        Output dataset name (no extension)
     explanation : str
-        Brief description of what columns were dropped and why.
+        Brief description
 
     Returns
     -------
     dict
-        {
-            "output_filename": str,        # new dataset without dropped columns
-            "n_rows": int,                 # number of rows (unchanged)
-            "n_columns_before": int,       # number of columns before dropping
-            "n_columns_after": int,        # number of columns after dropping
-            "columns_dropped": list[str],  # columns that were dropped
-            "columns_remaining": list[str],# columns that remain
-            "preview": list[dict],         # first 5 rows
-        }
-    
-    Raises
-    ------
-    ValueError
-        If any specified column is not found in the dataset.
-    
-    Examples
-    --------
-    # Drop all comment columns after cleaning pipeline
-    drop_columns(
-        input_filename="cleaned_data_A3F2B1D4.csv",
-        columns_to_drop=["comments_after_canonicalization", 
-                        "comments_after_salt_removal"],
-        project_manifest_path="/path/to/manifest.json",
-        output_filename="cleaned_final",
-        explanation="Removed intermediate comment columns"
-    )
-    
-    # Drop original SMILES column after standardization
-    drop_columns(
-        input_filename="standardized_A3F2B1D4.csv",
-        columns_to_drop=["smiles"],
-        project_manifest_path="/path/to/manifest.json",
-        output_filename="final_standardized",
-        explanation="Removed original SMILES, keeping only standardized_smiles"
-    )
-    
-    # Drop multiple intermediate columns
-    drop_columns(
-        input_filename="pipeline_output_A3F2B1D4.csv",
-        columns_to_drop=["smiles_after_canonicalization",
-                        "smiles_after_salt_removal",
-                        "smiles_after_solvent_removal"],
-        project_manifest_path="/path/to/manifest.json",
-        output_filename="cleaned_minimal",
-        explanation="Removed intermediate SMILES columns, keeping only final result"
-    )
-    
-    Notes
-    -----
-    - All specified columns must exist in the dataset, or an error will be raised
-    - At least one column must remain after dropping (cannot drop all columns)
-    - The operation creates a new resource; the original dataset is unchanged
-    - Row order and values are preserved exactly
+        Contains output_filename, n_rows, n_columns_before/after, columns_dropped/remaining, preview
     """
     import pandas as pd
     
@@ -924,80 +616,25 @@ def keep_columns(
     explanation: str = 'Kept specified columns from dataset'
 ) -> dict:
     """
-    Keep only specified columns from a dataset and save as a new CSV.
-    
-    Retains only the specified columns from a dataset and creates a new resource
-    with just those columns. This is useful for creating a minimal dataset with
-    only the essential columns needed for downstream analysis.
+    Keep only specified columns, drop all others.
 
     Parameters
     ----------
     input_filename : str
-        Base filename of the input dataset resource.
+        Input dataset filename
     columns_to_keep : list[str]
-        List of column names to keep in the dataset. All other columns will be dropped.
+        Columns to retain
     project_manifest_path : str
-        Path to the project manifest file for tracking this resource.
+        Path to manifest.json
     output_filename : str
-        Base filename for the stored resource (without extension).
+        Output dataset name (no extension)
     explanation : str
-        Brief description of what columns were kept and why.
+        Brief description
 
     Returns
     -------
     dict
-        {
-            "output_filename": str,        # new dataset with only kept columns
-            "n_rows": int,                 # number of rows (unchanged)
-            "n_columns_before": int,       # number of columns before filtering
-            "n_columns_after": int,        # number of columns after filtering
-            "columns_kept": list[str],     # columns that were kept
-            "columns_dropped": list[str],  # columns that were dropped
-            "preview": list[dict],         # first 5 rows
-        }
-    
-    Raises
-    ------
-    ValueError
-        If any specified column is not found in the dataset, or if no columns
-        are specified to keep.
-    
-    Examples
-    --------
-    # Keep only SMILES and label columns for ML training
-    keep_columns(
-        input_filename="full_dataset_A3F2B1D4.csv",
-        columns_to_keep=["standardized_smiles", "label"],
-        project_manifest_path="/path/to/manifest.json",
-        output_filename="training_data",
-        explanation="Kept only SMILES and label for model training"
-    )
-    
-    # Keep only final standardized SMILES
-    keep_columns(
-        input_filename="pipeline_output_A3F2B1D4.csv",
-        columns_to_keep=["standardized_smiles", "validation_status"],
-        project_manifest_path="/path/to/manifest.json",
-        output_filename="final_smiles",
-        explanation="Kept only standardized SMILES and validation status"
-    )
-    
-    # Keep specific identifier and result columns
-    keep_columns(
-        input_filename="analysis_results_A3F2B1D4.csv",
-        columns_to_keep=["molecule_id", "smiles", "predicted_activity", "confidence"],
-        project_manifest_path="/path/to/manifest.json",
-        output_filename="predictions",
-        explanation="Kept only ID, SMILES, and prediction results"
-    )
-    
-    Notes
-    -----
-    - All specified columns must exist in the dataset, or an error will be raised
-    - At least one column must be specified to keep
-    - The operation creates a new resource; the original dataset is unchanged
-    - Row order and values are preserved exactly
-    - This is the inverse operation of drop_columns()
+        Contains output_filename, n_rows, n_columns_before/after, columns_kept/dropped, preview
     """
     import pandas as pd
     
@@ -1043,60 +680,25 @@ def transform_column(
     explanation: str
 ) -> dict:
     """
-    Apply a mathematical transformation to create a new column using pandas.eval().
-    
-    Creates a single new column based on a mathematical expression. To create multiple
-    columns, call this function multiple times.
-    
-    Args:
-        input_filename: Input dataset filename
-        expression: Single pandas eval expression with assignment, e.g.:
-                   "pKi = -log10(Ki_nM / 1e9)"
-                   "log_MW = log10(MolWt)"
-                   "normalized = (value - value.mean()) / value.std()"
-                   "active = pIC50 > 6"
-        project_manifest_path: Path to manifest.json
-        output_filename: Name for output file
-        explanation: Description of transformation
-        
-    Returns:
-        Dictionary with output_filename, n_rows, columns, expression, and preview
-        
-    Examples:
-        # Convert nM to pKi
-        >>> transform_column(
-        ...     input_filename="data.csv",
-        ...     expression="pKi = -log10(Ki_nM / 1e9)",
-        ...     project_manifest_path="/path/to/manifest.json",
-        ...     output_filename="data_with_pKi",
-        ...     explanation="Added pKi column"
-        ... )
-        
-        # Normalize a column
-        >>> transform_column(
-        ...     input_filename="data.csv",
-        ...     expression="MolWt_norm = (MolWt - MolWt.mean()) / MolWt.std()",
-        ...     project_manifest_path="/path/to/manifest.json",
-        ...     output_filename="data_normalized",
-        ...     explanation="Z-score normalized MolWt"
-        ... )
-        
-        # Boolean flag
-        >>> transform_column(
-        ...     input_filename="data.csv",
-        ...     expression="is_active = IC50_nM < 100",
-        ...     project_manifest_path="/path/to/manifest.json",
-        ...     output_filename="data_with_flag",
-        ...     explanation="Added activity flag"
-        ... )
+    Create new column using pandas.eval() expression.
 
-    Note:
-        - Only ONE expression per call (pandas.eval() limitation)
-        - Use numpy functions: log10, sqrt, exp, log, etc.
-        - Can reference existing columns and use .mean(), .std(), etc.
-        - Supports arithmetic: +, -, *, /, **, %
-        - Supports comparisons: <, >, <=, >=, ==, !=
-        - To create multiple columns, call this function multiple times
+    Parameters
+    ----------
+    input_filename : str
+        Input dataset filename
+    expression : str
+        Pandas eval expression with assignment (e.g., "pKi = -log10(Ki_nM / 1e9)")
+    project_manifest_path : str
+        Path to manifest.json
+    output_filename : str
+        Output dataset name (no extension)
+    explanation : str
+        Brief description
+
+    Returns
+    -------
+    dict
+        Contains output_filename, n_rows, columns, expression, preview
     """
     df = _load_resource(project_manifest_path, input_filename)
     
@@ -1124,43 +726,27 @@ def combine_datasets_vertical(
     verify_columns: bool = True
 ) -> dict:
     """
-    Stack multiple datasets vertically (concatenate rows). Call this to combine datasets.
-    
-    Use this tool when user says:
-    - "combine these datasets"
-    - "merge dataset A and B"
-    - "stack these files together"
-    - "append dataset B to dataset A"
-    
+    Stack datasets vertically (concatenate rows).
+
     Parameters
     ----------
     input_filenames : list[str]
-        List of dataset filenames to combine (e.g., ["data1_ABC123.csv", "data2_DEF456.csv"])
+        List of dataset filenames to combine
     project_manifest_path : str
-        Absolute path to manifest.json
+        Path to manifest.json
     output_filename : str
-        Name for combined dataset, no extension (e.g., "combined_data")
+        Output dataset name (no extension)
     explanation : str
-        Brief description (e.g., "Combined training and validation sets")
+        Brief description
     handle_duplicates : str, default='keep_all'
-        How to handle duplicate rows:
-        - 'keep_all': Keep all rows including duplicates
-        - 'drop_duplicates': Remove duplicate rows after combining
-        - 'raise_error': Raise error if duplicates found
+        'keep_all', 'drop_duplicates', or 'raise_error'
     verify_columns : bool, default=True
-        If True, verify all datasets have same column names. If False, missing columns filled with NaN.
-    
+        If True, verify all datasets have same columns
+
     Returns
     -------
     dict
-        {
-            "output_filename": str,
-            "n_rows": int,              # Total rows in combined dataset
-            "n_rows_per_input": dict,   # Rows from each input file
-            "n_duplicates_dropped": int,  # If handle_duplicates='drop_duplicates'
-            "columns": list[str],
-            "preview": list[dict]
-        }
+        Contains output_filename, n_rows, n_rows_per_input, n_duplicates_dropped, columns, preview
     """
     import pandas as pd
     
@@ -1224,72 +810,29 @@ def combine_datasets_horizontal(
     on_mismatch: str = 'raise'
 ) -> dict:
     """
-    Combine two datasets horizontally (side-by-side, adding columns).
-    
-    Joins datasets by concatenating columns. By default, verifies that rows
-    are aligned (same order and count) before combining.
-    
-    Use Cases:
-    - Add computed features to existing dataset
-    - Merge descriptors with labels (when already aligned)
-    - Combine train/test splits that share same row order
-    
+    Combine datasets horizontally (side-by-side, adding columns).
+
     Parameters
     ----------
     project_manifest_path : str
-        Path to the manifest.json file tracking all project resources.
+        Path to manifest.json
     left_filename : str
-        Filename of the left dataset (with unique ID).
+        Left dataset filename
     right_filename : str
-        Filename of the right dataset (with unique ID).
+        Right dataset filename
     output_filename : str
-        Base name for the output file (unique ID will be appended).
+        Output dataset name (no extension)
     explanation : str
-        Human-readable description of the combination operation.
+        Brief description
     verify_alignment : bool, default=True
-        If True, verify both datasets have same row count and order.
-        Checks that index values match exactly.
-    on_mismatch : {'raise', 'warn'}, default='raise'
-        Action when alignment verification fails:
-        - 'raise': Raise ValueError
-        - 'warn': Print warning but continue with simple concatenation
-    
+        Verify datasets have same row count and index order
+    on_mismatch : str, default='raise'
+        'raise' or 'warn' when alignment fails
+
     Returns
     -------
     dict
-        {
-            "output_filename": str,
-            "n_rows": int,
-            "n_columns": int,
-            "n_columns_left": int,
-            "n_columns_right": int,
-            "alignment_verified": bool,
-            "columns": list[str],
-            "preview": list[dict]
-        }
-    
-    Raises
-    ------
-    ValueError
-        If verify_alignment=True and datasets have mismatched row counts or indices.
-        If datasets have overlapping column names.
-    
-    Notes
-    -----
-    - Datasets must have same number of rows
-    - Column names must be unique across both datasets (no overlap)
-    - Row order matters - use verify_alignment=True to ensure alignment
-    - For key-based joins, use merge functions instead
-    
-    Examples
-    --------
-    >>> combine_datasets_horizontal(
-    ...     project_manifest_path="project/manifest.json",
-    ...     left_filename="molecules_ABC123.csv",
-    ...     right_filename="descriptors_XYZ789.csv",
-    ...     output_filename="combined_features",
-    ...     explanation="Add molecular descriptors to base dataset"
-    ... )
+        Contains output_filename, n_rows, n_columns, n_columns_left/right, alignment_verified, columns, preview
     """
     import pandas as pd
     
@@ -1373,88 +916,35 @@ def merge_datasets_on_smiles(
     suffixes: tuple = ('_x', '_y')
 ) -> dict:
     """
-    Merge two datasets based on SMILES molecular structures.
-    
-    Performs SQL-like join operations on datasets using SMILES as the key.
-    Automatically canonicalizes SMILES for reliable matching by default.
-    
-    Use Cases:
-    - Combine bioactivity data from different sources
-    - Merge computed properties with experimental measurements
-    - Join descriptor sets with activity labels
-    - Integrate datasets from different databases
-    
+    Merge datasets using SMILES as join key (with optional canonicalization).
+
     Parameters
     ----------
     project_manifest_path : str
-        Path to the manifest.json file tracking all project resources.
+        Path to manifest.json
     left_filename : str
-        Filename of the left dataset (with unique ID).
+        Left dataset filename
     right_filename : str
-        Filename of the right dataset (with unique ID).
+        Right dataset filename
     output_filename : str
-        Base name for the output file (unique ID will be appended).
+        Output dataset name (no extension)
     explanation : str
-        Human-readable description of the merge operation.
+        Brief description
     left_smiles_col : str
-        Name of the SMILES column in the left dataset.
+        SMILES column name in left dataset
     right_smiles_col : str
-        Name of the SMILES column in the right dataset.
-    how : {'inner', 'left', 'right', 'outer'}, default='inner'
-        Type of merge to perform:
-        - 'inner': Only keep molecules present in both datasets
-        - 'left': Keep all left molecules, add right data where available
-        - 'right': Keep all right molecules, add left data where available
-        - 'outer': Keep all molecules from both datasets
+        SMILES column name in right dataset
+    how : str, default='inner'
+        'inner', 'left', 'right', or 'outer'
     canonicalize : bool, default=True
-        If True, canonicalize SMILES before merging for reliable matching.
-        Uses RDKit's canonical SMILES representation.
+        Canonicalize SMILES before merging
     suffixes : tuple, default=('_x', '_y')
-        Suffixes to apply to overlapping column names (left, right).
-        Example: 'activity' becomes 'activity_x' and 'activity_y'.
-    
+        Suffixes for overlapping columns
+
     Returns
     -------
     dict
-        {
-            "output_filename": str,
-            "n_rows": int,
-            "n_rows_left": int,          # Original left row count
-            "n_rows_right": int,         # Original right row count
-            "n_matched": int,            # Molecules found in both
-            "merge_type": str,           # Join type used
-            "canonicalized": bool,       # Whether SMILES were canonicalized
-            "smiles_column": str,        # Name of SMILES column in output
-            "columns": list[str],
-            "preview": list[dict]
-        }
-    
-    Raises
-    ------
-    ValueError
-        If SMILES columns don't exist in datasets.
-        If invalid merge type specified.
-        If canonicalization fails for SMILES.
-    
-    Notes
-    -----
-    - Canonicalization is strongly recommended for reliable matching
-    - Invalid SMILES are dropped during canonicalization
-    - Output uses 'smiles' as the merged SMILES column name
-    - Overlapping columns (except SMILES) get suffixes applied
-    
-    Examples
-    --------
-    >>> merge_datasets_on_smiles(
-    ...     project_manifest_path="project/manifest.json",
-    ...     left_filename="bioactivity_ABC123.csv",
-    ...     right_filename="descriptors_XYZ789.csv",
-    ...     output_filename="merged_data",
-    ...     explanation="Merge bioactivity with molecular descriptors",
-    ...     left_smiles_col="smiles",
-    ...     right_smiles_col="canonical_smiles",
-    ...     how="inner"
-    ... )
+        Contains output_filename, n_rows, n_rows_left/right, n_matched, merge_type, canonicalized, smiles_column, columns, preview
     """
     import pandas as pd
     from rdkit import Chem
