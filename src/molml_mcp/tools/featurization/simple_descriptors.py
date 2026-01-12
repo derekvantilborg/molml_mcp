@@ -11,21 +11,10 @@ def list_rdkit_descriptors() -> list[dict]:
     """
     List all available RDKit 2D molecular descriptors.
     
-    Returns a list of descriptor metadata including names and descriptions.
-    Use this to discover which descriptors are available before computing them
-    with calculate_descriptors().
-    
-    Returns:
-        List of dicts with keys:
-            - name: Descriptor function name (e.g. "MolWt", "TPSA")
-            - explanation: Brief description from the descriptor's docstring
-    
-    Example return:
-        [
-            {"name": "MolWt", "explanation": "Molecular weight"},
-            {"name": "TPSA", "explanation": "Topological polar surface area"},
-            ...
-        ]
+    Returns
+    -------
+    list[dict]
+        Dicts with 'name' (descriptor function name) and 'explanation' (brief description).
     """
     out = []
     for name, fn in Descriptors._descList:
@@ -41,11 +30,7 @@ def calculate_simple_descriptors(input_filename: str, smiles_column: str, descri
     """
     Calculate RDKit molecular descriptors for molecules in a dataset.
     
-    This function computes the specified RDKit 2D descriptors for all molecules 
-    in the given SMILES column and adds each descriptor as a new column to the dataset.
-    Invalid SMILES or calculation failures result in None values for that descriptor.
-    
-    Most commonly used descriptors:
+    Common descriptors:
     - TPSA: Topological Polar Surface Area (Å²)
     - MolWt: Molecular weight (g/mol)
     - MolLogP: Octanol-water partition coefficient (log P)
@@ -61,43 +46,27 @@ def calculate_simple_descriptors(input_filename: str, smiles_column: str, descri
     Parameters
     ----------
     input_filename : str
-        Base filename of the input dataset resource.
+        Input dataset filename.
     smiles_column : str
-        Name of the column containing SMILES strings.
+        Column containing SMILES strings.
     descriptor_names : list[str]
-        List of RDKit descriptor names to calculate.
-        Use list_rdkit_descriptors() to see all 210+ available descriptor names.
+        RDKit descriptor names to calculate. Use list_rdkit_descriptors() to see all 210+ available names.
     project_manifest_path : str
-        Path to the project manifest file for tracking this resource.
+        Path to manifest.json.
     output_filename : str
-        Base filename for the stored resource (without extension).
+        Base name for output file.
     explanation : str
-        Brief description of what descriptors were calculated.
+        Description for manifest.
     
     Returns
     -------
     dict
-        {
-            "output_filename": str,          # filename for the new dataset
-            "n_rows": int,                   # number of rows
-            "columns": list[str],            # all column names including new descriptors
-            "descriptors_added": list[str],  # names of descriptors successfully added
-            "n_failed": int,                 # number of molecules that failed calculation
-            "preview": list[dict],           # first 5 rows as records
-        }
+        Contains output_filename, n_rows, columns, descriptors_added, n_failed, note, preview.
     
     Raises
     ------
     ValueError
-        If the SMILES column is not found or if invalid descriptor names are provided.
-    
-    Examples
-    --------
-    # Calculate common drug-like properties
-    calculate_descriptors(rid, "smiles", ["MolWt", "TPSA", "MolLogP", "NumHDonors", "NumHAcceptors"])
-    
-    # Calculate additional structural properties
-    calculate_descriptors(rid, "smiles", ["HeavyAtomCount", "NumRotatableBonds", "RingCount", "qed"])
+        If SMILES column not found or invalid descriptor names provided.
     """
     import pandas as pd
     
