@@ -12,39 +12,36 @@ from typing import Any, Dict, List, Optional
 
 def store_csv_from_path(file_path: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
     """
-    Store a CSV file from a local file path provided by the MCP client.
+    Import a CSV file from disk. Call this when the user provides a CSV file path.
     
-    This tool reads the CSV into a tabular dataset, stores it as an internal
-    resource, and returns a new `resource_id` together with basic dataset
-    information. No assumptions are made about the meaning of columns.
-
+    Use this tool when user says:
+    - "load /path/to/data.csv"
+    - "import this CSV file"
+    - "read my dataset at /Users/..."
+    - ANY time a CSV file path is mentioned
+    
+    If no project manifest exists yet, create one with create_project_manifest first.
+    
     Parameters
     ----------
     file_path : str
-        Path to a CSV file supplied by the client (e.g. from a drag-and-drop
-        upload). The file is read exactly as provided.
+        Absolute path to CSV file (e.g., "/Users/name/data.csv")
     project_manifest_path : str
-        Path to the project manifest file for tracking this resource.
+        Absolute path to manifest.json (e.g., "/Users/name/project/manifest.json")
     filename : str
-        Base filename for the stored resource (without extension).
+        Name for stored dataset, no extension (e.g., "my_data")
     explanation : str
-        Brief description of what this dataset contains.
+        Brief description (e.g., "Training data from ChEMBL")
 
     Returns
     -------
     dict
         {
-            "output_filename": str,     # identifier for the stored dataset
-            "n_rows": int,          # number of rows in the dataset
-            "columns": list[str],   # all column names detected in the CSV
-            "preview": list[dict],  # first 5 rows as records (for inspection)
+            "output_filename": str,  # Use this in all subsequent operations
+            "n_rows": int,
+            "columns": list[str],
+            "preview": list[dict]
         }
-
-    Notes
-    -----
-    - This tool only loads and stores the uploaded file. It does not perform
-      any cleaning, type inference, or column guessing.
-    - Subsequent tools should operate using the returned `resource_id`.
     """
     import pandas as pd
 
@@ -62,7 +59,9 @@ def store_csv_from_path(file_path: str, project_manifest_path: str, filename: st
 
 def store_csv_from_text(csv_content: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
     """
-    Store CSV data from content provided by the MCP client.
+    Import CSV data from text content. Call this when user provides CSV as string.
+    
+    If no project manifest exists yet, create one with create_project_manifest first.
     
     Parameters
     ----------
