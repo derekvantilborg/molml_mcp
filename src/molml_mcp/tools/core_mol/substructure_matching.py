@@ -1,8 +1,10 @@
 from __future__ import annotations
-from typing import Dict, Mapping
+from typing import Dict, Mapping, List, Optional
 from rdkit.Chem.rdchem import Mol
 from molml_mcp.constants import STRUCTURAL_PATTERNS, FUNCTIONAL_GROUP_PATTERNS
 from rdkit.Chem import MolFromSmiles, MolFromSmarts
+from molml_mcp.infrastructure.resources import _load_resource, _store_resource
+import pandas as pd
 
 
 def get_available_structural_patterns() -> Mapping[str, Dict[str, str]]:
@@ -454,17 +456,122 @@ def find_structural_patterns_in_list_of_smiles(smiles_list: list[str]) -> list[s
     return results
 
 
+def add_substructure_matches_to_dataset(
+    input_filename: str,
+    project_manifest_path: str,
+    smiles_column: str,
+    output_filename: str,
+    pattern_type: str = "functional_groups",
+    specific_patterns: Optional[List[str]] = None,
+    explanation: str = "Added substructure match columns"
+) -> Dict:
+    """
+    Add binary (yes/no) columns indicating substructure matches for each molecule.
+    
+    Creates a new column for each substructure pattern checked, with 'yes' if the
+    pattern matches and 'no' if it doesn't. Useful for filtering or analysis based
+    on structural features.
+    
+    Parameters
+    ----------
+    input_filename : str
+        Input dataset filename from manifest.
+    project_manifest_path : str
+        Path to project manifest.json.
+    smiles_column : str
+        Column containing SMILES strings.
+    output_filename : str
+        Name for output dataset.
+    pattern_type : str, default='functional_groups'
+        Type of patterns to check: 'functional_groups' or 'structural'.
+    specific_patterns : list[str], optional
+        List of specific pattern names to check. If None, checks all patterns
+        for the given pattern_type. Discover them with get_available_structural_patterns() or get_available_functional_group_patterns()
+    explanation : str
+        Description of operation.
+        
+    Returns
+    -------
+    dict
+        Contains output_filename, n_rows, n_patterns_added, pattern_names, and preview.
+    """
+    import pandas as pd
+    
+    # Load dataset
+    df = _load_resource(project_manifest_path, input_filename)
+    
+    # Validate SMILES column
+    if smiles_column not in df.columns:
+        raise ValueError(f"Column '{smiles_column}' not found. Available: {df.columns.tolist()}")
+    
+    # Get pattern dictionary
+    if pattern_type == "functional_groups":
+        patterns_dict = dict(get_available_functional_group_patterns())
+    elif pattern_type == "structural":
+        patterns_dict = dict(get_available_structural_patterns())
+    else:
+        raise ValueError(f"pattern_type must be 'functional_groups' or 'structural', got '{pattern_type}'")
+    
+    # Filter to specific patterns if requested
+    if specific_patterns is not None:
+        # Validate all requested patterns exist
+        missing = [p for p in specific_patterns if p not in patterns_dict]
+        if missing:
+            raise ValueError(f"Pattern names not found: {missing}. Use get_available_{pattern_type}_patterns() to see valid names.")
+        patterns_dict = {name: patterns_dict[name] for name in specific_patterns}
+    
+    if len(patterns_dict) == 0:
+        raise ValueError("No patterns to check. Provide valid specific_patterns or use default.")
+    
+    print(f"Checking {len(patterns_dict)} {pattern_type} patterns across {len(df)} molecules...")
+    
+    # Process each pattern
+    for pattern_name, pattern_info in patterns_dict.items():
+        smarts = pattern_info['pattern']
+        matches = []
+        
+        for smi in df[smiles_column]:
+            mol = MolFromSmiles(str(smi)) if pd.notna(smi) else None
+            if mol is None:
+                matches.append('no')
+            else:
+                has_match = _mol_has_pattern(mol, smarts)
+                matches.append('yes' if has_match else 'no')
+        
+        # Add column with sanitized name
+        col_name = f"has_{pattern_name}"
+        df[col_name] = matches
+    
+    # Store result
+    output_id = _store_resource(
+        df,
+        project_manifest_path,
+        output_filename,
+        explanation,
+        'csv'
+    )
+    
+    # Get list of added columns
+    added_columns = [f"has_{name}" for name in patterns_dict.keys()]
+    
+    return {
+        "output_filename": output_id,
+        "n_rows": len(df),
+        "n_patterns_added": len(patterns_dict),
+        "pattern_names": list(patterns_dict.keys()),
+        "added_columns": added_columns,
+        "columns": list(df.columns),
+        "preview": df.head(5).to_dict(orient="records")
+    }
+
 
 def get_all_substructure_matching_tools():
     """Return a list of all molecular cleaning tools."""
     return [
         get_available_structural_patterns,
         get_available_functional_group_patterns,
-        smiles_has_structural_pattern,
-        find_structural_patterns_in_smiles,
-        find_functional_group_patterns_in_smiles,
-        find_functional_group_patterns_in_list_of_smiles,
-        find_structural_patterns_in_list_of_smiles
+
+        add_substructure_matches_to_dataset
     ]
 
 

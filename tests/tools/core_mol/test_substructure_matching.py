@@ -1,6 +1,7 @@
 """Tests for substructure matching functions."""
 
 import pytest
+import pandas as pd
 from molml_mcp.tools.core_mol.substructure_matching import (
     get_available_structural_patterns,
     get_available_functional_group_patterns,
@@ -8,7 +9,8 @@ from molml_mcp.tools.core_mol.substructure_matching import (
     find_structural_patterns_in_smiles,
     find_functional_group_patterns_in_smiles,
     find_functional_group_patterns_in_list_of_smiles,
-    find_structural_patterns_in_list_of_smiles
+    find_structural_patterns_in_list_of_smiles,
+    add_substructure_matches_to_dataset
 )
 
 
@@ -157,3 +159,155 @@ def test_find_structural_patterns_in_list_of_smiles():
     assert len(results) == 2
     assert results[0] == ''  # Invalid returns empty
     assert len(results[1]) > 0  # Benzene has patterns
+
+
+def test_add_substructure_matches_to_dataset_functional_groups(session_workdir, request):
+    """Test adding functional group match columns to dataset."""
+    from molml_mcp.infrastructure.resources import _load_resource, _store_resource, create_project_manifest
+    
+    # Create test directory
+    test_dir = session_workdir / request.node.name
+    test_dir.mkdir(exist_ok=True)
+    create_project_manifest(str(test_dir), "test")
+    manifest_path = str(test_dir / "test_manifest.json")
+    
+    # Create test dataset
+    df = pd.DataFrame({
+        'smiles': ['CCO', 'CC(=O)C', 'CC(=O)OCC', 'c1ccccc1', 'invalid'],
+        'name': ['ethanol', 'acetone', 'ethyl acetate', 'benzene', 'bad']
+    })
+    input_file = _store_resource(df, manifest_path, "test_data", "Test molecules", 'csv')
+    
+    # Test with specific patterns
+    result = add_substructure_matches_to_dataset(
+        input_filename=input_file,
+        project_manifest_path=manifest_path,
+        smiles_column='smiles',
+        output_filename='with_matches',
+        pattern_type='functional_groups',
+        specific_patterns=['Hydroxyl', 'Ketone', 'Ester'],
+        explanation='Added functional group matches'
+    )
+    
+    assert 'output_filename' in result
+    assert result['n_rows'] == 5
+    assert result['n_patterns_added'] == 3
+    assert set(result['pattern_names']) == {'Hydroxyl', 'Ketone', 'Ester'}
+    assert set(result['added_columns']) == {'has_Hydroxyl', 'has_Ketone', 'has_Ester'}
+    
+    # Load result and verify columns
+    df_result = _load_resource(manifest_path, result['output_filename'])
+    assert 'has_Hydroxyl' in df_result.columns
+    assert 'has_Ketone' in df_result.columns
+    assert 'has_Ester' in df_result.columns
+    
+    # Verify values
+    assert df_result.loc[0, 'has_Hydroxyl'] == 'yes'  # Ethanol has OH
+    assert df_result.loc[1, 'has_Ketone'] == 'yes'  # Acetone has ketone
+    assert df_result.loc[2, 'has_Ester'] == 'yes'  # Ethyl acetate has ester
+    assert df_result.loc[3, 'has_Hydroxyl'] == 'no'  # Benzene has no OH
+    assert df_result.loc[4, 'has_Hydroxyl'] == 'no'  # Invalid SMILES
+
+
+def test_add_substructure_matches_to_dataset_structural(session_workdir, request):
+    """Test adding structural pattern match columns to dataset."""
+    from molml_mcp.infrastructure.resources import _load_resource, _store_resource, create_project_manifest
+    
+    # Create test directory
+    test_dir = session_workdir / request.node.name
+    test_dir.mkdir(exist_ok=True)
+    create_project_manifest(str(test_dir), "test")
+    manifest_path = str(test_dir / "test_manifest.json")
+    
+    # Create test dataset
+    df = pd.DataFrame({
+        'smiles': ['c1ccccc1', 'CCCC', 'C1CCC1'],
+        'name': ['benzene', 'butane', 'cyclobutane']
+    })
+    input_file = _store_resource(df, manifest_path, "test_data", "Test molecules", 'csv')
+    
+    # Test with structural patterns
+    result = add_substructure_matches_to_dataset(
+        input_filename=input_file,
+        project_manifest_path=manifest_path,
+        smiles_column='smiles',
+        output_filename='with_structural',
+        pattern_type='structural',
+        specific_patterns=['Ring atom', 'Rotatable bond'],
+        explanation='Added structural patterns'
+    )
+    
+    assert result['n_rows'] == 3
+    assert result['n_patterns_added'] == 2
+    
+    # Load result and verify
+    df_result = _load_resource(manifest_path, result['output_filename'])
+    assert df_result.loc[0, 'has_Ring atom'] == 'yes'  # Benzene has rings
+    assert df_result.loc[1, 'has_Ring atom'] == 'no'  # Butane has no rings
+    assert df_result.loc[2, 'has_Ring atom'] == 'yes'  # Cyclobutane has rings
+
+
+def test_add_substructure_matches_to_dataset_all_patterns(session_workdir, request):
+    """Test adding all patterns when specific_patterns is None."""
+    from molml_mcp.infrastructure.resources import _load_resource, _store_resource, create_project_manifest
+    
+    # Create test directory
+    test_dir = session_workdir / request.node.name
+    test_dir.mkdir(exist_ok=True)
+    create_project_manifest(str(test_dir), "test")
+    manifest_path = str(test_dir / "test_manifest.json")
+    
+    # Create minimal dataset
+    df = pd.DataFrame({'smiles': ['CCO']})
+    input_file = _store_resource(df, manifest_path, "test_data", "Test", 'csv')
+    
+    # Test with all functional groups (should be many)
+    result = add_substructure_matches_to_dataset(
+        input_filename=input_file,
+        project_manifest_path=manifest_path,
+        smiles_column='smiles',
+        output_filename='with_all',
+        pattern_type='functional_groups',
+        specific_patterns=None,  # Check all patterns
+        explanation='All patterns'
+    )
+    
+    # Should have checked many patterns
+    assert result['n_patterns_added'] > 10
+    df_result = _load_resource(manifest_path, result['output_filename'])
+    assert len(df_result.columns) > 10  # Original + many pattern columns
+
+
+def test_add_substructure_matches_to_dataset_errors(session_workdir, request):
+    """Test error handling in add_substructure_matches_to_dataset."""
+    from molml_mcp.infrastructure.resources import _store_resource, create_project_manifest
+    
+    # Create test directory
+    test_dir = session_workdir / request.node.name
+    test_dir.mkdir(exist_ok=True)
+    create_project_manifest(str(test_dir), "test")
+    manifest_path = str(test_dir / "test_manifest.json")
+    
+    # Create test dataset
+    df = pd.DataFrame({'smiles': ['CCO']})
+    input_file = _store_resource(df, manifest_path, "test_data", "Test", 'csv')
+    
+    # Test invalid column name
+    with pytest.raises(ValueError, match="Column 'wrong' not found"):
+        add_substructure_matches_to_dataset(
+            input_file, manifest_path, 'wrong', 'out', explanation='test'
+        )
+    
+    # Test invalid pattern type
+    with pytest.raises(ValueError, match="pattern_type must be"):
+        add_substructure_matches_to_dataset(
+            input_file, manifest_path, 'smiles', 'out',
+            pattern_type='invalid', explanation='test'
+        )
+    
+    # Test invalid pattern names
+    with pytest.raises(ValueError, match="Pattern names not found"):
+        add_substructure_matches_to_dataset(
+            input_file, manifest_path, 'smiles', 'out',
+            specific_patterns=['NonExistentPattern'], explanation='test'
+        )
