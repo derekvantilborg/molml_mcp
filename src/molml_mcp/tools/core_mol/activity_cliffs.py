@@ -220,11 +220,11 @@ def annotate_activity_cliff_molecules(
     # Compute fold-difference matrix
     fold_diff_matrix = _compute_fold_difference_matrix(activity_values)
     
-    # Initialize annotation columns
+    # Initialize annotation columns with proper dtypes
     df['is_activity_cliff_molecule'] = 'no'
     df['n_activity_cliff_partners'] = 0
-    df['strongest_cliff_partner_idx'] = np.nan
-    df['strongest_cliff_partner_smiles'] = np.nan
+    df['strongest_cliff_partner_idx'] = pd.Series([np.nan] * len(df), dtype='Int64')  # Nullable integer
+    df['strongest_cliff_partner_smiles'] = pd.Series([None] * len(df), dtype='object')  # Object for strings
     
     # Find cliffs for each molecule
     total_cliff_pairs = 0
