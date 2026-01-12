@@ -58,23 +58,6 @@ def reduce_dimensions_pca(
             - pc1_column: Name of first PC column
             - pc2_column: Name of second PC column
     
-    Examples:
-        # Basic PCA on Morgan fingerprints
-        result = reduce_dimensions_pca(
-            input_filename="molecules_A1B2C3D4.csv",
-            feature_vectors_filename="morgan_fps_E5F6G7H8.joblib",
-            project_manifest_path="/path/to/manifest.json",
-            output_filename="molecules_with_pca"
-        )
-        
-        # PCA on continuous descriptors (forces PCA)
-        result = reduce_dimensions_pca(
-            input_filename="molecules_A1B2C3D4.csv",
-            feature_vectors_filename="descriptors_E5F6G7H8.joblib",
-            project_manifest_path="/path/to/manifest.json",
-            output_filename="molecules_with_pca",
-            use_svd_for_binary=False
-        )
     """
     from sklearn.decomposition import PCA, TruncatedSVD
     
@@ -252,35 +235,6 @@ def reduce_dimensions_tsne(
             - kl_divergence: Final KL divergence (lower is better)
             - tsne1_column: Name of first t-SNE column
             - tsne2_column: Name of second t-SNE column
-    
-    Examples:
-        # Basic t-SNE on Morgan fingerprints
-        result = reduce_dimensions_tsne(
-            input_filename="molecules_A1B2C3D4.csv",
-            feature_vectors_filename="morgan_fps_E5F6G7H8.joblib",
-            project_manifest_path="/path/to/manifest.json",
-            output_filename="molecules_with_tsne"
-        )
-        
-        # t-SNE with Jaccard metric for binary fingerprints
-        result = reduce_dimensions_tsne(
-            input_filename="molecules_A1B2C3D4.csv",
-            feature_vectors_filename="morgan_fps_E5F6G7H8.joblib",
-            project_manifest_path="/path/to/manifest.json",
-            output_filename="molecules_with_tsne",
-            metric="jaccard",
-            perplexity=50
-        )
-        
-        # High-quality t-SNE (more iterations)
-        result = reduce_dimensions_tsne(
-            input_filename="molecules_A1B2C3D4.csv",
-            feature_vectors_filename="descriptors_E5F6G7H8.joblib",
-            project_manifest_path="/path/to/manifest.json",
-            output_filename="molecules_with_tsne",
-            max_iter=2000,
-            learning_rate=200.0
-        )
     """
     from sklearn.manifold import TSNE
     
