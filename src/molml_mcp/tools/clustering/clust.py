@@ -460,24 +460,6 @@ def cluster_spectral_on_similarity(
             - silhouette_score: Clustering quality metric (-1 to 1, higher is better)
             - used_precomputed_matrix: Whether precomputed matrix was used
             - assign_labels: Label assignment method used
-    
-    Examples:
-        # Auto-estimate clusters from eigenvalues (n_clusters=None)
-        result = cluster_spectral_on_similarity(
-            input_filename="molecules_A1B2C3D4.csv",
-            project_manifest_path="/path/to/manifest.json",
-            output_filename="molecules_clustered",
-            similarity_matrix_filename="similarity_E5F6G7H8.joblib"
-        )
-        
-        # Specify exact number of clusters
-        result = cluster_spectral_on_similarity(
-            input_filename="molecules_A1B2C3D4.csv",
-            project_manifest_path="/path/to/manifest.json",
-            output_filename="molecules_clustered",
-            feature_vectors_filename="morgan_fps_E5F6G7H8.joblib",
-            n_clusters=8
-        )
     """
     from sklearn.cluster import SpectralClustering
     from sklearn.metrics import silhouette_score
@@ -647,25 +629,6 @@ def cluster_kmeans_on_features(
             - inertia: Sum of squared distances to nearest cluster center (lower is better)
             - n_iterations: Number of iterations until convergence
             - used_precomputed_features: Whether precomputed features were used
-    
-    Examples:
-        # With precomputed feature vectors
-        result = cluster_kmeans_on_features(
-            input_filename="molecules_A1B2C3D4.csv",
-            project_manifest_path="/path/to/manifest.json",
-            output_filename="molecules_clustered",
-            feature_vectors_filename="morgan_fps_E5F6G7H8.joblib",
-            n_clusters=10
-        )
-        
-        # Compute Morgan fingerprints on-the-fly
-        result = cluster_kmeans_on_features(
-            input_filename="molecules_A1B2C3D4.csv",
-            project_manifest_path="/path/to/manifest.json",
-            output_filename="molecules_clustered",
-            n_clusters=8,
-            n_init=20  # More runs for stability
-        )
     """
     from sklearn.cluster import KMeans
     from sklearn.metrics import silhouette_score
