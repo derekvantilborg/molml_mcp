@@ -14,43 +14,18 @@ from molml_mcp.infrastructure.resources import _load_resource, _store_resource
 
 def _compute_fold_difference_matrix(activity_values: np.ndarray) -> np.ndarray:
     """
-    Compute pairwise fold-difference matrix from activity values.
-    
-    ⚠️ IMPORTANT: Expects LINEAR SCALE activity values (IC50_nM, Ki_nM, EC50_nM, etc.).
-    
-    Fold-difference is calculated as the simple ratio: max(val_i, val_j) / min(val_i, val_j)
-    
-    This ensures fold-difference is always >= 1.0, representing how many times more
-    potent one molecule is compared to another.
-    
-    Examples with IC50 in nM:
-    - IC50=100nM vs IC50=10nM: fold = 100/10 = 10-fold
-    - IC50=1000nM vs IC50=10nM: fold = 1000/10 = 100-fold
-    - IC50=50nM vs IC50=25nM: fold = 50/25 = 2-fold
-    
-    ⚠️ DO NOT use log-scale data (pIC50, pKi):
-    - pIC50=7.0 vs pIC50=8.0 would give 8.0/7.0 = 1.14-fold (WRONG!)
-    - The actual fold-difference is 10-fold
-    - Convert first: IC50_nM = 10^(9 - pIC50) * 1e9
+    Compute pairwise fold-difference matrix. Formula: max(val_i, val_j) / min(val_i, val_j).
+    ⚠️ Requires LINEAR SCALE (IC50_nM, Ki_nM). DO NOT use log-scale (pIC50, pKi).
     
     Parameters
     ----------
     activity_values : np.ndarray
-        1D array of activity values for each molecule in LINEAR SCALE.
-        Examples: IC50 in nM, Ki in nM, EC50 in μM, etc.
+        1D array in LINEAR SCALE (IC50 nM, Ki nM, EC50 μM, etc.)
         
     Returns
     -------
     np.ndarray
-        Symmetric matrix of shape (n_molecules, n_molecules) with fold-differences.
-        Diagonal values are 1.0 (molecule compared to itself).
-        
-    Example
-    -------
-    >>> activities = np.array([100.0, 10.0, 50.0])  # IC50 in nM
-    >>> fold_matrix = _compute_fold_difference_matrix(activities)
-    >>> fold_matrix[0, 1]  # 100 / 10 = 10.0
-    10.0
+        Symmetric matrix (n_molecules × n_molecules) with fold-differences, diagonal = 1.0
     """
     n_molecules = len(activity_values)
     fold_diff_matrix = np.ones((n_molecules, n_molecules))
@@ -85,103 +60,42 @@ def annotate_activity_cliff_molecules(
     fold_difference_threshold: float = 10.0,
 ) -> Dict:
     """
-    Annotate each molecule in the dataset with activity cliff information.
-    
-    Instead of returning all pairwise cliffs (which can be 100+ combinations), this function
-    adds columns to the original dataset indicating:
-    - Whether each molecule participates in any activity cliff
-    - The strongest cliff partner (similar molecule with largest activity difference)
-    
-    This is much more practical for large datasets while preserving key insights.
-    
-    **What is the "strongest" cliff partner?**
-    Among all molecules that meet the similarity threshold, the strongest partner is the one
-    with the LARGEST FOLD-DIFFERENCE in activity. This identifies the most dramatic activity
-    cliff for each molecule.
-    
-    ⚠️ CRITICAL: Activity values MUST be in LINEAR SCALE (IC50_nM, Ki_nM, EC50_μM, etc.)
-                DO NOT use log-scale data (pIC50, pKi, pEC50)!
-                
-    If you have log-scale data (pIC50, pKi, etc.):
-    Convert first using:
-    - IC50_nM = 10^(9 - pIC50)  [converts pIC50 to IC50 in nM]
-    - Ki_nM = 10^(9 - pKi)      [converts pKi to Ki in nM]
-    - EC50_nM = 10^(9 - pEC50)  [converts pEC50 to EC50 in nM]
+    Annotate molecules with activity cliff partners (similar structure, large activity difference).
+    ⚠️ CRITICAL: activity_column MUST be LINEAR SCALE (IC50_nM, Ki_nM). DO NOT use log-scale (pIC50, pKi).
+    Conversion: IC50_nM = 10^(9 - pIC50)
     
     Parameters
     ----------
     dataset_filename : str
-        Input dataset filename from manifest (must contain SMILES and activity columns).
+        Input dataset from manifest
     project_manifest_path : str
-        Path to the project manifest.json file.
+        Path to manifest.json
     smiles_column : str
-        Name of the column containing SMILES strings.
+        Column with SMILES
     activity_column : str
-        Name of the column containing activity values in LINEAR SCALE.
-        ✅ CORRECT: IC50_nM, Ki_nM, EC50_μM, Kd_nM
-        ❌ WRONG: pIC50, pKi, pEC50, pKd (log scale)
+        Activity column in LINEAR SCALE (✅ IC50_nM, Ki_nM | ❌ pIC50, pKi)
     similarity_matrix_filename : str
-        Filename of the precomputed similarity matrix (from compute_similarity_matrix).
-        
-        Common similarity metrics for activity cliffs:
-        - 'tanimoto': Most popular, emphasizes common features (recommended on ECFPs of scaffolds or full molecules)
-        - 'edit_distance': String-based SMILES similarity (fast, no fingerprints)
-        - 'cosine': Good for count-based fingerprints
-        
-        Note: Typically use Tanimoto similarity with Morgan/ECFP fingerprints for
-        activity cliff analysis. The similarity_threshold (default 0.8) defines
-        what "structurally similar" means.
+        Precomputed similarity matrix (from compute_similarity_matrix)
     output_filename : str
-        Name for the output dataset (will be versioned with unique ID).
+        Output dataset name
     explanation : str
-        Human-readable description of this operation.
+        Operation description
     similarity_threshold : float, default=0.8
-        Minimum similarity for molecules to be considered structurally similar.
-        Typical range: 0.85-0.95 for Tanimoto similarity
+        Minimum similarity for "structurally similar" (typical: 0.85-0.95 for Tanimoto)
     fold_difference_threshold : float, default=10.0
-        Minimum fold-difference in activity to be considered an activity cliff.
-        For LINEAR SCALE: fold = max(IC50_i, IC50_j) / min(IC50_i, IC50_j)
-        Typical range: 10-100
+        Minimum fold-difference for activity cliff (typical: 10-100)
         
     Returns
     -------
     dict
-        Contains:
-        - output_filename: Versioned filename of annotated dataset
-        - n_molecules: Total molecules in dataset
-        - n_cliff_molecules: Number of molecules participating in cliffs
-        - n_non_cliff_molecules: Number of molecules not in any cliff
-        - columns: List of all columns (including new annotation columns)
-        - preview: First 5 rows
-        - summary: Human-readable summary
+        output_filename, n_molecules, n_cliff_molecules, n_non_cliff_molecules, n_total_cliff_pairs, summary
         
     New Columns Added
     -----------------
-    - is_activity_cliff_molecule : str ('yes' or 'no')
-        'yes' if molecule participates in at least one activity cliff, 'no' otherwise
-    - n_activity_cliff_partners : int
-        Number of cliff partners this molecule has (0 if no cliffs)
-    - strongest_cliff_partner_idx : int or NaN
-        Index of the molecule that forms the strongest cliff (largest fold-difference)
-        among all similar molecules (similarity > threshold)
+    - is_activity_cliff_molecule : 'yes' or 'no'
+    - n_activity_cliff_partners : int (count of partners)
+    - strongest_cliff_partner_idx : int or NaN (index of partner with largest fold-difference)
     - strongest_cliff_partner_smiles : str or NaN
-        SMILES of the strongest cliff partner
-        
-    Example
-    -------
-    >>> result = annotate_activity_cliff_molecules(
-    ...     'dataset.csv',
-    ...     '/path/to/manifest.json',
-    ...     'SMILES',
-    ...     'IC50_nM',  # LINEAR SCALE!
-    ...     'similarity_matrix.joblib',
-    ...     'annotated_dataset',
-    ...     similarity_threshold=0.8,
-    ...     fold_difference_threshold=10.0
-    ... )
-    >>> print(result['summary'])
-    Found 45 activity cliff molecules out of 150 total (30.0%).
-    These molecules participate in 127 activity cliff pairs.
     """
     # Print warning about linear scale requirement
     print(f"⚠️  IMPORTANT: Activity values must be in LINEAR SCALE (IC50_nM, Ki_nM, etc.)")
@@ -307,7 +221,7 @@ def annotate_activity_cliff_molecules(
 
 def get_all_activity_cliff_tools():
     """
-    Returns a list of MCP-exposed activity cliff functions for server registration.
+    Returns all MCP-exposed activity cliff functions.
     """
     return [
         annotate_activity_cliff_molecules,
