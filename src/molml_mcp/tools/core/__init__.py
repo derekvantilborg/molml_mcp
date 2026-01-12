@@ -1,8 +1,8 @@
 """Core tools package - domain-agnostic dataset and utility operations."""
 
 from molml_mcp.tools.core.dataset_ops import (
-    store_csv_from_path,
-    store_csv_from_text,
+    import_csv_from_path,
+    import_csv_from_text,
     get_dataset_head,
     get_dataset_full,
     get_dataset_summary,
@@ -38,8 +38,8 @@ from molml_mcp.tools.core.outliers import (
 )
 
 __all__ = [
-    'store_csv_from_path',
-    'store_csv_from_text',
+    'import_csv_from_path',
+    'import_csv_from_text',
     'get_dataset_head',
     'get_dataset_full',
     'get_dataset_summary',

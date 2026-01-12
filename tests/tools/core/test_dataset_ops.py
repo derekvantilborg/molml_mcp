@@ -4,9 +4,9 @@ import pytest
 from pathlib import Path
 
 
-def test_store_csv_from_path(session_workdir, request):
-    """Test storing CSV file as dataset."""
-    from molml_mcp.tools.core.dataset_ops import store_csv_from_path
+def test_import_csv_from_path(session_workdir, request):
+    """Test importing CSV file as dataset."""
+    from molml_mcp.tools.core.dataset_ops import import_csv_from_path
     from molml_mcp.infrastructure.resources import _load_resource, create_project_manifest
     
     # Create test-specific subdirectory
@@ -22,7 +22,7 @@ def test_store_csv_from_path(session_workdir, request):
     df_original.to_csv(csv_path, index=False)
     
     # Store as dataset
-    result = store_csv_from_path(
+    result = import_csv_from_path(
         file_path=str(csv_path),
         project_manifest_path=manifest_path,
         filename="test_data",
@@ -42,9 +42,9 @@ def test_store_csv_from_path(session_workdir, request):
     assert df_loaded.equals(df_original)
 
 
-def test_store_csv_from_text(session_workdir, request):
-    """Test storing CSV text as dataset."""
-    from molml_mcp.tools.core.dataset_ops import store_csv_from_text
+def test_import_csv_from_text(session_workdir, request):
+    """Test importing CSV text as dataset."""
+    from molml_mcp.tools.core.dataset_ops import import_csv_from_text
     from molml_mcp.infrastructure.resources import _load_resource, create_project_manifest
     
     # Create test-specific subdirectory
@@ -58,7 +58,7 @@ def test_store_csv_from_text(session_workdir, request):
     csv_text = "A,B\n1,4\n2,5\n3,6"
     
     # Store as dataset
-    result = store_csv_from_text(
+    result = import_csv_from_text(
         csv_content=csv_text,
         project_manifest_path=manifest_path,
         filename="test_data_text",

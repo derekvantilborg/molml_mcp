@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 
 
-def store_csv_from_path(file_path: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
+def import_csv_from_path(file_path: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
     """
     🚀 ENTRY POINT: Import a CSV file from a filesystem path into the project.
     
@@ -56,7 +56,7 @@ def store_csv_from_path(file_path: str, project_manifest_path: str, filename: st
     }
 
 
-def store_csv_from_text(csv_content: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
+def import_csv_from_text(csv_content: str, project_manifest_path: str, filename: str, explanation: str) -> dict:
     """
     Import CSV data from text string.
     
@@ -1188,8 +1188,8 @@ def read_json(input_filename: str, project_manifest_path: str) -> Dict[str, Any]
 def get_all_dataset_tools():
     """Return a list of all dataset manipulation tools."""
     return [
-        store_csv_from_path,
-        store_csv_from_text,
+        import_csv_from_path,
+        import_csv_from_text,
         get_dataset_head,
         get_dataset_full,
         get_dataset_summary,
