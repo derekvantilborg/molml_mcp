@@ -1,12 +1,12 @@
 # 🧬 MolML MCP Server
 
-> **Molecular Machine Learning for Claude Desktop** — An MCP server that gives Claude AI native access to cheminformatics and molecular ML workflows
+> **Molecular Machine Learning for AI Assistants** — An MCP server that gives LLMs native access to cheminformatics and molecular ML workflows
 
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://img.shields.io/badge/tests-363%20passed-brightgreen.svg)](tests/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**MolML MCP** transforms Claude Desktop into a powerful molecular machine learning workbench. Through the Model Context Protocol (MCP), Claude gains the ability to manipulate molecular structures, calculate descriptors, train ML models, and generate comprehensive analysis reports — all through natural conversation.
+**MolML MCP** transforms AI assistants into powerful molecular machine learning workbenches. Through the Model Context Protocol (MCP), LLMs gain the ability to manipulate molecular structures, calculate descriptors, train ML models, and generate comprehensive analysis reports — all through natural conversation.
 
 ---
 
@@ -50,31 +50,31 @@ cd molml_mcp
 # Install with uv (recommended)
 uv mcp install src/molml_mcp/server.py
 
-# Or deploy to Claude Desktop directly
+# Or deploy directly (updates MCP client config)
 ./deploy_mcp_server.sh
 ```
 
-### Usage with Claude Desktop
+### Usage with MCP Clients
 
-Once installed, simply chat with Claude naturally:
+Once installed, simply chat with your AI assistant naturally (Claude Desktop, Cline, etc.):
 
 **Example Conversations:**
 
 ```
 You: "Load my molecular dataset and check the quality"
-Claude: [Uses data_quality_analysis tool to generate comprehensive report]
+AI: [Uses data_quality_analysis tool to generate comprehensive report]
 
 You: "Clean the SMILES and remove salts"
-Claude: [Uses SMILES standardization pipeline]
+AI: [Uses SMILES standardization pipeline]
 
 You: "Calculate ECFP fingerprints and train a random forest classifier with 5-fold CV"
-Claude: [Calculates features, trains models, evaluates performance]
+AI: [Calculates features, trains models, evaluates performance]
 
 You: "Is there data leakage between my train and test splits?"
-Claude: [Uses data_split_quality_analysis to check for 8 types of leakage]
+AI: [Uses data_split_quality_analysis to check for 8 types of leakage]
 
 You: "What are the most common scaffolds in my dataset?"
-Claude: [Generates scaffold analysis report with diversity metrics]
+AI: [Generates scaffold analysis report with diversity metrics]
 ```
 
 ---
@@ -276,32 +276,20 @@ pytest --cov=molml_mcp --cov-report=html
 ### Deployment
 
 ```bash
-# Quick deploy to Claude Desktop
+# Quick deploy (updates MCP client config automatically)
 ./deploy_mcp_server.sh
 
 # Manual deployment
 uv mcp install src/molml_mcp/server.py
-# Restart Claude Desktop
+# Restart your MCP client (Claude Desktop, Cline, etc.)
 ```
 
 ---
 
 ## 📖 Documentation
 
-- **API Reference**: Function docstrings follow NumPy style with clear examples
 - **Tool Discovery**: All tools have enhanced docstrings with 🚀 markers for primary functions
-- **Guides**: See `docs/train_ml_models_cv_guide.md` for cross-validation workflows
-
----
-
-## 🤝 Contributing
-
-Contributions welcome! Please:
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Add tests for new functionality
-4. Ensure all tests pass (`pytest -v`)
-5. Submit a pull request
+- **Guides**: TODO
 
 ---
 
@@ -332,6 +320,6 @@ Built with:
 
 <div align="center">
 
-**Give Claude AI superpowers for molecular machine learning** 🚀
+**Give your AI assistant superpowers for molecular machine learning** 🚀
 
 </div>
