@@ -132,14 +132,14 @@ log_info "Configuring MCP clients..."
 echo ""
 
 # Run Claude Desktop configuration script
-if [ -f "$PROJECT_DIR/configure_claude.sh" ]; then
-    if "$PROJECT_DIR/configure_claude.sh" "$UV_BIN" "$PROJECT_DIR" "$CAIRO_PATH"; then
+if [ -f "$PROJECT_DIR/mcp_client_configs/configure_claude.sh" ]; then
+    if "$PROJECT_DIR/mcp_client_configs/configure_claude.sh" "$UV_BIN" "$PROJECT_DIR" "$CAIRO_PATH"; then
         CLIENTS_CONFIGURED=1
     else
         CLIENTS_CONFIGURED=0
     fi
 else
-    log_error "Configuration script not found: configure_claude.sh"
+    log_error "Configuration script not found: mcp_client_configs/configure_claude.sh"
     CLIENTS_CONFIGURED=0
 fi
 
@@ -157,9 +157,18 @@ if [ $CLIENTS_CONFIGURED -gt 0 ]; then
     echo "Next steps:"
     echo ""
     
-    echo -e "  1. The ${BLUE}molml-mcp${NC} server will appear in your MCP tools"
+    echo -e "  1. ${GREEN}Restart Claude Desktop${NC} (required for changes to take effect)"
     echo ""
-    echo "  2. Try it out! Ask Claude to:"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "     Quick restart (macOS):"
+        echo "       pkill -x Claude && sleep 1 && open -a Claude"
+    else
+        echo "     Close and reopen Claude Desktop from your applications"
+    fi
+    echo ""
+    echo -e "  2. The ${BLUE}molml-mcp${NC} server will appear in your MCP tools"
+    echo ""
+    echo "  3. Try it out! Ask Claude to:"
     echo "     • Load a molecular dataset"
     echo "     • Clean SMILES structures"
     echo "     • Calculate molecular descriptors"
