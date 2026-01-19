@@ -167,7 +167,7 @@ if [ $? -eq 0 ]; then
     echo "Config file: $CLAUDE_CONFIG"
     echo ""
     echo "Next steps:"
-    echo "  1. ${GREEN}Restart Claude Desktop${NC}"
+    echo -e "  1. ${GREEN}Restart Claude Desktop${NC}"
     echo ""
     if [[ "$OSTYPE" == "darwin"* ]]; then
         echo "     Quick restart (macOS):"
@@ -176,7 +176,7 @@ if [ $? -eq 0 ]; then
         echo "     Close and reopen Claude Desktop from your applications"
     fi
     echo ""
-    echo "  2. The ${BLUE}molml-mcp${NC} server will appear in your MCP tools"
+    echo -e "  2. The ${BLUE}molml-mcp${NC} server will appear in your MCP tools"
     echo ""
 else
     log_error "Failed to update Claude Desktop config"

@@ -157,7 +157,7 @@ if [ $CLIENTS_CONFIGURED -gt 0 ]; then
     echo "Next steps:"
     echo ""
     
-    echo "  1. The ${BLUE}molml-mcp${NC} server will appear in your MCP tools"
+    echo -e "  1. The ${BLUE}molml-mcp${NC} server will appear in your MCP tools"
     echo ""
     echo "  2. Try it out! Ask Claude to:"
     echo "     • Load a molecular dataset"
