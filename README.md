@@ -153,7 +153,7 @@ for the molecules in /path/to/virtual_screening.csv"
   # Or with pip
   pip install uv
   ```
-- **Cairo** (optional) - Only needed for plotting features
+- **Cairo** (optional) - Only needed for plotting of ACS-style molecular structures
   ```bash
   # macOS
   brew install cairo
@@ -163,16 +163,16 @@ for the molecules in /path/to/virtual_screening.csv"
   sudo yum install cairo-devel        # RHEL/CentOS
   ```
 
-### Quick Install (Recommended)
+### Quick Install for Claude Desktop (Recommended)
 
-Simply run the installer script - it handles everything:
+Simply run the installer script - it handles installation, configuration, and deployment:
 
 ```bash
 # Clone repository
 git clone https://github.com/derekvantilborg/molml_mcp.git
 cd molml_mcp
 
-# Run installer
+# Run installer (installs AND configures Claude Desktop)
 ./install.sh
 ```
 
@@ -180,9 +180,9 @@ The installer will:
 - ✅ Detect and verify uv installation
 - ✅ Install Python dependencies
 - ✅ Run server tests
-- ✅ Detect Cairo (optional, for plotting - will warn if missing)
-- ✅ Configure Claude Desktop automatically
-- ✅ Provide clear next steps
+- ✅ Detect Cairo (optional, for high-quality molecular images - will warn if missing)
+- ✅ Automatically configure Claude Desktop
+- ✅ Deploy the server to Claude
 
 **After installation, restart Claude Desktop:**
 ```bash
@@ -205,8 +205,10 @@ uv sync
 
 # 2. Run tests to verify installation
 uv run pytest -m server -q
+```
 
-# 3. Configure your MCP client
+**For Claude Desktop users**: Run the configuration script to deploy:
+```bash
 ./mcp_client_configs/configure_claude.sh $(which uv) $(pwd) [cairo_path]
 ```
 
@@ -312,17 +314,6 @@ uv run pytest --cov=molml_mcp --cov-report=html
 - ✅ Report generation (quality, scaffold, split analysis)
 - ✅ Visualization and statistical analysis
 
-### Deployment
-
-```bash
-# Quick deploy (updates MCP client config automatically)
-./deploy_mcp_server.sh
-
-# Manual deployment
-uv mcp install src/molml_mcp/server.py
-# Then restart your MCP client (Claude Desktop, Cline, etc.)
-```
-
 ---
 
 ## 📄 License
@@ -344,10 +335,7 @@ Built with:
 - **[Plotly & Dash](https://plotly.com/)** - Interactive visualizations
 - **[uv](https://docs.astral.sh/uv/)** - Fast Python package manager
 
-Special thanks to:
-- **Anthropic** for developing the Model Context Protocol and Claude
-- The **RDKit community** for maintaining the foundational cheminformatics toolkit
-- All contributors to the open-source scientific Python ecosystem
+Special thanks to the **RDKit community** for maintaining the foundational cheminformatics toolkit
 
 ---
 
@@ -358,11 +346,3 @@ Special thanks to:
 **Project Link**: [https://github.com/derekvantilborg/molml_mcp](https://github.com/derekvantilborg/molml_mcp)
 
 **Issues & Feature Requests**: [GitHub Issues](https://github.com/derekvantilborg/molml_mcp/issues)
-
----
-
-<div align="center">
-
-**Give your AI assistant superpowers for molecular machine learning** 🚀
-
-</div>
