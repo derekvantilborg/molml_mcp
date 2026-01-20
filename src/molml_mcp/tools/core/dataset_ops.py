@@ -425,7 +425,7 @@ def subset_dataset(input_filename: str, project_manifest_path: str, output_filen
     output_filename : str
     explanation : str
     filter_condition : str
-        Pandas query string. Use backticks for columns with spaces.
+        Pandas query string. Use backticks for columns with spaces or Python keywords (like `class`).
         Examples: 'status == "Passed"' | "value == 3" | "TPSA > 50" | "is_active == True" |
         "TPSA > 20 and MolWt < 500" | "`Molecular Weight` > 300" | "smiles.notnull()" | "label.isnull()"
     
