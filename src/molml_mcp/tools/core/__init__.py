@@ -36,16 +36,6 @@ from molml_mcp.tools.core.statistics import (
 from molml_mcp.tools.core.outliers import (
     get_all_outlier_detection_tools,
 )
-from molml_mcp.tools.core.plotting import (
-    add_molecular_scatter_plot,
-    add_histogram,
-    add_density_plot,
-    add_box_plot,
-    add_correlation_heatmap,
-    add_grouped_heatmap,
-    remove_plot,
-    list_active_plots,
-)
 
 __all__ = [
     'import_csv_from_path',
@@ -74,10 +64,4 @@ __all__ = [
     'reduce_dimensions_tsne',
     'get_all_statistical_test_tools',
     'get_all_outlier_detection_tools',
-    'add_molecular_scatter_plot',
-    'remove_plot',
-    'list_active_plots',
-    'add_histogram',
-    'add_density_plot',
-    'add_box_plot',
 ]

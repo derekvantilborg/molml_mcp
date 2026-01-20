@@ -7,7 +7,7 @@ from pathlib import Path
 import time
 
 if __name__ == "__main__":
-    from src.molml_mcp.tools.core.plotting import (
+    from src.molml_mcp.tools.plotting import (
         add_molecular_scatter_plot,
         list_active_plots,
     )

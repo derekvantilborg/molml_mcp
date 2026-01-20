@@ -122,24 +122,9 @@ for tool_func in get_all_clustering_tools():
     mcp.add_tool(tool_func)
 
 # Add plotting tools
-from molml_mcp.tools.core.plotting import (
-    add_molecular_scatter_plot,
-    add_histogram,
-    add_density_plot,
-    add_box_plot,
-    add_correlation_heatmap,
-    add_grouped_heatmap,
-    remove_plot,
-    list_active_plots,
-)
-mcp.add_tool(add_molecular_scatter_plot)
-mcp.add_tool(add_histogram)
-mcp.add_tool(add_density_plot)
-mcp.add_tool(add_box_plot)
-mcp.add_tool(add_correlation_heatmap)
-mcp.add_tool(add_grouped_heatmap)
-mcp.add_tool(remove_plot)
-mcp.add_tool(list_active_plots)
+from molml_mcp.tools.plotting import get_all_plotting_tools
+for tool_func in get_all_plotting_tools():
+    mcp.add_tool(tool_func)
 
 # Add ML metrics tools
 for tool_func in get_all_ml_tools():

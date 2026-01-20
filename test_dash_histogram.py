@@ -8,7 +8,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from molml_mcp.tools.core.plotting import add_histogram, add_molecular_scatter_plot, list_active_plots
+from molml_mcp.tools.plotting import add_histogram, add_molecular_scatter_plot, list_active_plots
 from molml_mcp.infrastructure.resources import _store_resource
 import pandas as pd
 import tempfile
