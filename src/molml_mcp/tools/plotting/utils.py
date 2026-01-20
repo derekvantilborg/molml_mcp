@@ -7,13 +7,22 @@ Manages global Dash server state, callback registration, and helper functions.
 from dash import Dash, dcc, html, Input, Output, no_update, ctx
 import plotly.graph_objects as go
 from rdkit import Chem
-from rdkit.Chem import Draw
+from rdkit.Chem import Draw, rdDepictor
+from rdkit.Chem.Draw import rdMolDraw2D
 import base64
 from io import BytesIO
 import pandas as pd
 import threading
 import time
 import numpy as np
+
+# Optional dependency for high-quality rendering
+try:
+    import cairosvg
+    HAS_CAIROSVG = True
+except Exception:
+    cairosvg = None
+    HAS_CAIROSVG = False
 
 # Global state for persistent Dash server
 _dash_app = None
@@ -23,7 +32,7 @@ _server_lock = threading.RLock()  # Use RLock for reentrant locking
 _PORT = 8050
 
 
-def _mol_to_base64(smiles, size=(200, 200)):
+def _mol_to_base64(smiles, size=(200, 200), use_acs1996=True):
     """
     Convert SMILES to base64 encoded PNG image.
     
@@ -32,7 +41,9 @@ def _mol_to_base64(smiles, size=(200, 200)):
     smiles : str
         SMILES string
     size : tuple
-        Image size (width, height)
+        Image size (width, height). If using ACS1996 with CairoSVG, output will be 4× this size.
+    use_acs1996 : bool
+        If True (default), use ACS1996 rendering style (same as smiles_to_acs1996_png)
     
     Returns
     -------
@@ -42,10 +53,47 @@ def _mol_to_base64(smiles, size=(200, 200)):
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return None
-    img = Draw.MolToImage(mol, size=size)
-    buffered = BytesIO()
-    img.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode()
+    
+    if use_acs1996:
+        # ACS1996 rendering style (matches smiles_to_acs1996_png)
+        m = Chem.Mol(mol)
+        rdDepictor.Compute2DCoords(m)
+        
+        if HAS_CAIROSVG:
+            # High-quality SVG → PNG route with 4× scaling
+            drawer = rdMolDraw2D.MolDraw2DSVG(-1, -1)  # flexicanvas
+            opts = drawer.drawOptions()
+            mean_bond_len = Draw.MeanBondLength(m) or 1.5
+            Draw.SetACS1996Mode(opts, mean_bond_len)
+            
+            rdMolDraw2D.PrepareAndDrawMolecule(drawer, m, legend='')
+            drawer.FinishDrawing()
+            svg = drawer.GetDrawingText()
+            
+            png_bytes = cairosvg.svg2png(
+                bytestring=svg.encode("utf-8"),
+                scale=4.0,
+            )
+        else:
+            # Fallback: pure RDKit PNG at base_size
+            w, h = size
+            drawer = rdMolDraw2D.MolDraw2DCairo(w, h)
+            opts = drawer.drawOptions()
+            mean_bond_len = Draw.MeanBondLength(m) or 1.5
+            Draw.SetACS1996Mode(opts, mean_bond_len)
+            
+            rdMolDraw2D.PrepareAndDrawMolecule(drawer, m, legend='')
+            drawer.FinishDrawing()
+            png_bytes = drawer.GetDrawingText()
+        
+        img_str = base64.b64encode(png_bytes).decode()
+    else:
+        # Original simple rendering
+        img = Draw.MolToImage(mol, size=size)
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+    
     return f"data:image/png;base64,{img_str}"
 
 
@@ -232,7 +280,9 @@ def _setup_universal_callback():
         df_row = df.iloc[num]
         smiles = df_row[plot_data['smiles_column']]
         
-        img_src = _mol_to_base64(smiles)
+        # Use ACS1996 style if specified in plot data (defaults to False for backward compatibility)
+        use_acs1996 = plot_data.get('use_acs1996', False)
+        img_src = _mol_to_base64(smiles, use_acs1996=use_acs1996)
         
         properties = []
         for col in df.columns:

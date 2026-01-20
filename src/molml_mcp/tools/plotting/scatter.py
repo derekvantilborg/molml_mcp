@@ -19,7 +19,8 @@ def add_molecular_scatter_plot(
     smiles_column: str = 'smiles',
     color_column: str = None,
     size_column: str = None,
-    show_structures_on_hover: bool = True
+    show_structures_on_hover: bool = True,
+    use_acs1996_style: bool = True
 ) -> dict:
     """Add interactive scatter plot with optional molecular structure tooltips.
     
@@ -37,8 +38,9 @@ def add_molecular_scatter_plot(
     color_column : str, optional - Column for point colors
     size_column : str, optional - Column for point sizes
     show_structures_on_hover : bool, default=True - Show structures on hover
+    use_acs1996_style : bool, default=True - Use ACS1996 rendering style for molecules (matches smiles_to_acs1996_png)
     
-    Returns: dict with plot_name, plot_id, url, n_molecules, x_column, y_column, show_structures, active_plots, message
+    Returns: dict with plot_name, plot_id, url, n_molecules, x_column, y_column, show_structures, use_acs1996_style, active_plots, message
     
     Example: add_molecular_scatter_plot("data_ABC123.csv", "MW", "LogP", "/path/manifest.json", "MW vs LogP", "Lipophilicity analysis")
     """
@@ -83,6 +85,7 @@ def add_molecular_scatter_plot(
             'color_column': color_column,
             'size_column': size_column,
             'show_structures': show_structures_on_hover,
+            'use_acs1996': use_acs1996_style,
             'explanation': explanation
         }
         
@@ -102,6 +105,7 @@ def add_molecular_scatter_plot(
         "x_column": x_column,
         "y_column": y_column,
         "show_structures": show_structures_on_hover,
+        "use_acs1996_style": use_acs1996_style,
         "active_plots": list(_active_plots.keys()),
         "message": f"Plot '{plot_name}' added. Visit {url} to view all {len(_active_plots)} plot(s)."
     }
