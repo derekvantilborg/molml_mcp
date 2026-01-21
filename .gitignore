@@ -19,3 +19,6 @@ tests/CLEANING_TEST_RESULTS.md
 tests/RESOURCE_MANAGEMENT_TEST_SUMMARY.md
 tests/PIPELINE_TEST_RESULTS.md
 deploy_mcp_server.sh
+img/banner.png
+.gitignore
+img/logo.ai

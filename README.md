@@ -1,5 +1,9 @@
 # 🧬 MolML MCP Server
 
+<div align="left">
+  <img src="img/logo.png" alt="MolML MCP Logo" width="600"/>
+</div>
+
 > **Molecular Machine Learning for AI Assistants** — An MCP server that gives LLMs native access to cheminformatics and molecular ML workflows
 
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
