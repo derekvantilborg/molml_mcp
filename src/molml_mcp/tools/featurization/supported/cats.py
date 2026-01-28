@@ -403,7 +403,25 @@ def smiles_to_cats_dataset(
     output_filename: str,
     explanation: str = 'Calculate CATS fingerprints'
 ) -> dict:
+    """Calculate CATS (Chemically Advanced Template Search) pharmacophore descriptors for molecules in a dataset.
     
+    CATS descriptors encode 2D pharmacophore information by counting pairs of pharmacophore features
+    (Donor, Acceptor, Aromatic, Hydrophobe, PosIonizable, NegIonizable) at different topological distances.
+    
+    Args:
+        input_filename: Input dataset resource filename
+        project_manifest_path: Path to manifest.json
+        smiles_column: Column name containing SMILES strings
+        output_filename: Name for output resource (without extension)
+        explanation: Description of this operation
+        
+    Returns:
+        Dict containing:
+            - output_filename: Full filename with unique ID
+            - n_molecules: Number of molecules processed
+            - fingerprint_type: "CATS"
+            - dimensions: 210 (descriptor length)
+    """
     df = _load_resource(project_manifest_path, input_filename)
 
     if smiles_column not in df.columns:
