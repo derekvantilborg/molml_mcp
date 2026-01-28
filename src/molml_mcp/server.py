@@ -32,7 +32,12 @@ from molml_mcp.tools.core_mol.similarity import (
 )
 
 from molml_mcp.tools.featurization.SMILES_encoding import get_all_smiles_encoding_tools
-from molml_mcp.tools.featurization.simple_descriptors import list_rdkit_descriptors, calculate_simple_descriptors
+from molml_mcp.tools.featurization.simple_descriptors import (
+    list_rdkit_descriptors, 
+    calculate_simple_descriptors,
+    calculate_descriptor_vectors,
+    normalize_feature_vectors
+)
 from molml_mcp.tools.featurization.complex_descriptors import get_all_complex_descriptor_tools
 from molml_mcp.tools.ml import get_all_ml_tools
 
@@ -97,6 +102,8 @@ for tool_func in get_all_substructure_matching_tools():
 # Add descriptor tools
 mcp.add_tool(list_rdkit_descriptors)
 mcp.add_tool(calculate_simple_descriptors)
+mcp.add_tool(calculate_descriptor_vectors)
+mcp.add_tool(normalize_feature_vectors)
 for tool_func in get_all_complex_descriptor_tools():
     mcp.add_tool(tool_func)
 
