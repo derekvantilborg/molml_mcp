@@ -241,6 +241,8 @@ def _analyze_stereochemistry(smiles_list: List[str]) -> Dict:
         # Count chiral centers
         chiral_centers = FindMolChiralCenters(mol, includeUnassigned=True)
         n_chiral = len(chiral_centers)
+        n_specified_chiral = 0
+        n_unspecified_chiral = 0
         
         if n_chiral > 0:
             molecules_with_chiral += 1
