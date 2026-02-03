@@ -697,32 +697,45 @@ def transform_column(
     
     df = _load_resource(project_manifest_path, input_filename)
     
-    # Try pandas.eval() first for simple mathematical expressions
-    # If it fails, try direct execution for type conversions and string operations
-    try:
-        df.eval(expression, inplace=True)
-    except (SyntaxError, ValueError, KeyError, AttributeError) as e:
-        # pandas.eval() failed, try direct execution for more complex operations
-        # This allows type conversions, string operations, etc.
+    # Create safe evaluation context
+    safe_dict = {
+        'pd': pd,
+        'np': np,
+        'int': int,
+        'float': float,
+        'str': str,
+        'bool': bool,
+    }
+    
+    # Check if expression contains operations that pandas.eval() can't handle
+    needs_exec = any(pattern in expression for pattern in ['.str.', '.astype(', '.fillna(', '.replace('])
+    
+    if not needs_exec:
+        # Try pandas.eval() first for simple mathematical expressions
         try:
-            # Create a safe execution environment with common pandas/numpy functions
-            safe_globals = {
-                'df': df,
-                'pd': pd,
-                'np': np,
-                'int': int,
-                'float': float,
-                'str': str,
-                'bool': bool,
-            }
-            # Execute the expression
-            exec(f"df.{expression}", safe_globals)
-            df = safe_globals['df']
+            df.eval(expression, inplace=True, local_dict=safe_dict)
+        except Exception:
+            needs_exec = True
+    
+    if needs_exec:
+        # Use exec for string operations, type conversions, and complex transformations
+        try:
+            # Create namespace with column references
+            namespace = {col: df[col] for col in df.columns}
+            namespace.update(safe_dict)
+            
+            # Execute the expression in the namespace
+            exec(expression, namespace)
+            
+            # Update dataframe with modified/new columns
+            for key, value in namespace.items():
+                if key not in ['pd', 'np', 'int', 'float', 'str', 'bool', '__builtins__']:
+                    if isinstance(value, pd.Series):
+                        df[key] = value
+                    
         except Exception as exec_error:
             raise ValueError(
-                f"Failed to execute expression '{expression}'. "
-                f"pandas.eval error: {e}. "
-                f"Direct execution error: {exec_error}. "
+                f"Failed to execute expression '{expression}': {exec_error}. "
                 "Examples of valid expressions:\n"
                 "  - Math: 'pKi = -log10(Ki_nM / 1e9)'\n"
                 "  - Type: 'age = age.astype(int)'\n"

@@ -743,6 +743,22 @@ def test_transform_column(session_workdir, request):
     df_result5 = _load_resource(manifest_path, result5["output_filename"])
     assert df_result5["Ki"].dtype == np.float64
     assert list(df_result5["Ki"]) == [1.5, 10.0, 2.5, 50.0]
+    
+    # Test 6: The exact user's reported case - .replace() then .astype()
+    df6 = pd.DataFrame({"MLM": [">99.99", "50.5", ">99.99", "75.0"]})
+    filename6 = _store_resource(df6, manifest_path, "test_data_transform6", "Test", "csv")
+    
+    result6 = transform_column(
+        input_filename=filename6,
+        expression="MLM = MLM.replace('>99.99', '99.99').astype(float)",
+        project_manifest_path=manifest_path,
+        output_filename="transformed_data6",
+        explanation="Replace >99.99 and convert to float"
+    )
+    
+    df_result6 = _load_resource(manifest_path, result6["output_filename"])
+    assert df_result6["MLM"].dtype == np.float64
+    assert list(df_result6["MLM"]) == [99.99, 50.5, 99.99, 75.0]
 
 
 def test_scramble_column(session_workdir, request):
